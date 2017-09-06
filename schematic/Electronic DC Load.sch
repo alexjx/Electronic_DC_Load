@@ -9292,9 +9292,9 @@ Extended soldering pads.
 <wire x1="-4.3476" y1="3.254" x2="-4.3476" y2="14.2588" width="0.2032" layer="21"/>
 <wire x1="-4.3476" y1="14.2588" x2="-2.4" y2="14.2588" width="0.2032" layer="21"/>
 <wire x1="-4.3476" y1="3.254" x2="4.3476" y2="3.254" width="0.2032" layer="21"/>
-<pad name="PWR" x="0" y="13.8778" drill="3.2" diameter="4.1148"/>
-<pad name="GND" x="0.0254" y="6.557" drill="2.9972" diameter="4.1148"/>
-<pad name="GNDBREAK" x="3.7616" y="10.7" drill="2.9972" diameter="4.1148" rot="R90"/>
+<pad name="PWR" x="0" y="13.8778" drill="3.2" diameter="4.3688" shape="octagon"/>
+<pad name="GND" x="0.0254" y="6.557" drill="2.9972" diameter="4.3688" shape="octagon"/>
+<pad name="GNDBREAK" x="3.7616" y="10.7" drill="2.9972" diameter="4.1148" shape="octagon" rot="R90"/>
 <rectangle x1="-0.2159" y1="12.1793" x2="0.2413" y2="15.1003" layer="51" rot="R90"/>
 <rectangle x1="-0.1397" y1="6.3119" x2="0.1397" y2="8.7503" layer="51" rot="R90"/>
 <rectangle x1="4.4704" y1="9.4742" x2="4.7498" y2="11.9126" layer="51" rot="R180"/>
@@ -11783,7 +11783,8 @@ Created 2016-06-07, Hans Locher&lt;br&gt;
 <vertex x="5.9309" y="-2.9845"/>
 </polygon>
 <text x="-5.3594" y="4.8768" size="1.27" layer="21" ratio="6" rot="SR0">*</text>
-<text x="-3.2766" y="-0.635" size="1.27" layer="25" ratio="6" rot="SR0">&gt;Name</text>
+<text x="-3.7846" y="5.588" size="1.27" layer="25" ratio="6" rot="SR0">&gt;NAME</text>
+<text x="-3.556" y="-6.35" size="0.6096" layer="27">&gt;VALUE</text>
 </package>
 <package name="DW16-M">
 <smd name="1" x="-4.572" y="4.445" dx="2.6162" dy="0.6096" layer="1"/>
@@ -12054,6 +12055,8 @@ Created 2016-06-07, Hans Locher&lt;br&gt;
 <wire x1="1.3716" y1="2.4892" x2="-0.3048" y2="2.4892" width="0.1524" layer="21"/>
 <wire x1="0.3048" y1="2.5146" x2="-0.3048" y2="2.4892" width="0.1524" layer="21" curve="-180"/>
 <text x="-3.302" y="2.3368" size="1.27" layer="21" ratio="6" rot="SR0">*</text>
+<text x="-2.159" y="2.667" size="0.6096" layer="25">&gt;NAME</text>
+<text x="-2.032" y="-3.302" size="0.6096" layer="27">&gt;VALUE</text>
 </package>
 <package name="DCK0006A_N">
 <smd name="1" x="-1.125" y="0.65" dx="0.4" dy="0.85" layer="1" rot="R90"/>
@@ -12121,7 +12124,8 @@ Created 2016-06-07, Hans Locher&lt;br&gt;
 <wire x1="-1.4986" y1="1.0922" x2="0.381" y2="1.0922" width="0.2032" layer="21"/>
 <wire x1="-0.508" y1="-1.0922" x2="0.508" y2="-1.0922" width="0.2032" layer="21"/>
 <circle x="-0.254" y="0.635" radius="0.179603125" width="0.127" layer="21"/>
-<text x="-1.524" y="1.524" size="0.8128" layer="21">&gt;NAME</text>
+<text x="-1.524" y="1.397" size="0.6096" layer="25">&gt;NAME</text>
+<text x="-1.651" y="-1.905" size="0.6096" layer="21">&gt;VALUE</text>
 </package>
 <package name="Z03A">
 <pad name="1" x="-2.54" y="-2.54" drill="0.889" diameter="1.397" shape="square"/>
@@ -12347,7 +12351,6 @@ Created 2016-06-07, Hans Locher&lt;br&gt;
 <attribute name="REFDES" value="RefDes" constant="no"/>
 <attribute name="ROHS" value="Y" constant="no"/>
 <attribute name="TYPE" value="TYPE" constant="no"/>
-<attribute name="VALUE" value="Value" constant="no"/>
 </technology>
 </technologies>
 </device>
@@ -14064,6 +14067,12 @@ new: Attribute TP_SIGNAL_NAME&lt;br&gt;
 <smd name="2" x="-3.0988" y="0" dx="1.2192" dy="2.2352" layer="1" rot="R270"/>
 <smd name="3" x="-3.0988" y="-2.3114" dx="1.2192" dy="2.2352" layer="1" rot="R270"/>
 <smd name="4" x="3.099" y="0" dx="3.6" dy="2.2" layer="1" rot="R270"/>
+<wire x1="-2.54" y1="3.937" x2="-2.54" y2="-3.937" width="0.127" layer="51"/>
+<wire x1="-2.54" y1="-3.937" x2="2.54" y2="-3.937" width="0.127" layer="51"/>
+<wire x1="2.54" y1="-3.937" x2="2.54" y2="3.937" width="0.127" layer="51"/>
+<wire x1="2.54" y1="3.937" x2="-2.54" y2="3.937" width="0.127" layer="51"/>
+<text x="-2.54" y="4.318" size="0.6096" layer="25">&gt;NAME</text>
+<text x="-2.667" y="-4.826" size="0.6096" layer="27">&gt;VALUE</text>
 </package>
 </packages>
 <symbols>
@@ -14164,10 +14173,6 @@ new: Attribute TP_SIGNAL_NAME&lt;br&gt;
 <wire x1="1.95" y1="-2.45" x2="-1.95" y2="-2.45" width="0.127" layer="51"/>
 <wire x1="-1.95" y1="-2.45" x2="-1.95" y2="2.45" width="0.127" layer="51"/>
 <circle x="-2.667" y="2.74" radius="0.1" width="0.2" layer="21"/>
-<wire x1="-3.683" y1="2.794" x2="3.683" y2="2.794" width="0.05" layer="39"/>
-<wire x1="3.683" y1="2.794" x2="3.683" y2="-2.794" width="0.05" layer="39"/>
-<wire x1="3.683" y1="-2.794" x2="-3.683" y2="-2.794" width="0.05" layer="39"/>
-<wire x1="-3.683" y1="-2.794" x2="-3.683" y2="2.794" width="0.05" layer="39"/>
 <text x="-3.17893125" y="3.17893125" size="1.27156875" layer="25">&gt;NAME</text>
 <text x="-3.18001875" y="-4.45201875" size="1.272009375" layer="27">&gt;VALUE</text>
 <rectangle x1="0.135090625" y1="0.135090625" x2="0.935" y2="1.375" layer="31"/>
@@ -15003,7 +15008,8 @@ Source: http://www.onsemi.com/pub_link/Collateral/MBRA340T3-D.PDF</description>
 <wire x1="0.3048" y1="3.9624" x2="-0.3048" y2="3.9624" width="0.1524" layer="51" curve="-180"/>
 <text x="-3.6576" y="3.81" size="1.27" layer="51" ratio="6" rot="SR0">*</text>
 <circle x="-1.143" y="3.048" radius="0.283978125" width="0.127" layer="21"/>
-<text x="0.635" y="0.508" size="0.8128" layer="25" rot="R270">&gt;NAME</text>
+<text x="-2.413" y="4.191" size="0.8128" layer="25">&gt;NAME</text>
+<text x="-2.286" y="-4.953" size="0.6096" layer="27">&gt;VALUE</text>
 </package>
 <package name="R_8">
 <smd name="1" x="-2.3622" y="1.905" dx="2.1844" dy="0.5588" layer="1"/>
@@ -15074,7 +15080,8 @@ Source: http://www.onsemi.com/pub_link/Collateral/MBRA340T3-D.PDF</description>
 <wire x1="1.1684" y1="2.4892" x2="-0.3048" y2="2.4892" width="0.1524" layer="21"/>
 <wire x1="0.3048" y1="2.5146" x2="-0.3048" y2="2.4892" width="0.1524" layer="21" curve="-180"/>
 <text x="-3.2004" y="2.3368" size="1.27" layer="21" ratio="6" rot="SR0">*</text>
-<text x="-0.381" y="1.8796" size="0.8128" layer="25" ratio="6" rot="SR270">&gt;Name</text>
+<text x="-1.8796" y="2.794" size="0.8128" layer="25" ratio="6" rot="SR0">&gt;NAME</text>
+<text x="-1.905" y="-3.429" size="0.6096" layer="28">&gt;VALUE</text>
 </package>
 <package name="R_8-M">
 <smd name="1" x="-2.413" y="1.905" dx="2.4892" dy="0.6096" layer="1"/>
@@ -15931,7 +15938,7 @@ You are welcome to use this library for commercial purposes. For attribution, we
 <part name="C14" library="resistor" library_urn="urn:adsk.eagle:library:348" deviceset="C-EU" device="C0603" package3d_urn="urn:adsk.eagle:package:26138/1" value="22uF"/>
 <part name="R5" library="0_sup" deviceset="MRE_R005_4W_2728_1%" device=""/>
 <part name="GND11" library="supply1" library_urn="urn:adsk.eagle:library:371" deviceset="GND" device=""/>
-<part name="U4" library="0_texas-instrument" deviceset="INA210AIDCKRG4" device="" value="Value"/>
+<part name="U4" library="0_texas-instrument" deviceset="INA210AIDCKRG4" device="" value="INA210AIDCKRG4"/>
 <part name="GND12" library="supply1" library_urn="urn:adsk.eagle:library:371" deviceset="GND" device=""/>
 <part name="U5" library="MP1584EN" deviceset="MP1584EN" device=""/>
 <part name="C15" library="resistor" library_urn="urn:adsk.eagle:library:348" deviceset="C-EU" device="C0805" package3d_urn="urn:adsk.eagle:package:26137/1" value="1uF"/>
