@@ -6,7 +6,7 @@
 <setting alwaysvectorfont="no"/>
 <setting verticaltext="up"/>
 </settings>
-<grid distance="50" unitdist="mil" unit="mil" style="lines" multiple="1" display="no" altdistance="1" altunitdist="mil" altunit="mil"/>
+<grid distance="50" unitdist="mil" unit="mm" style="lines" multiple="1" display="no" altdistance="1" altunitdist="mil" altunit="mil"/>
 <layers>
 <layer number="1" name="Top" color="4" fill="1" visible="yes" active="yes"/>
 <layer number="2" name="Route2" color="1" fill="3" visible="no" active="no"/>
@@ -185,6 +185,11 @@
 <wire x1="78.74" y1="17.7546" x2="78.74" y2="28.956" width="0.4064" layer="48"/>
 <wire x1="78.74" y1="28.956" x2="78.7654" y2="28.9814" width="0.4064" layer="48"/>
 <text x="95.3008" y="16.129" size="1.778" layer="21">V+</text>
+<text x="97.3328" y="38.1762" size="1.778" layer="22" font="vector" rot="MR0">Electronic Load
+By XJ
+2017.09</text>
+<text x="98.5012" y="49.3522" size="0.6096" layer="16" font="vector" ratio="15" rot="MR0">2017.09.09</text>
+<circle x="-11.1506" y="16.6116" radius="2.620265625" width="0.2" layer="47"/>
 </plain>
 <libraries>
 <library name="resistor" urn="urn:adsk.eagle:library:348">
@@ -3284,7 +3289,7 @@ einem neuen Namen ab.</description>
 <wire x1="82.0944625" y1="37.7952" x2="83.9216" y2="37.7952" width="0.4064" layer="1"/>
 <wire x1="83.9216" y1="37.7952" x2="84.0228" y2="37.694" width="0.4064" layer="1"/>
 <wire x1="84.0228" y1="37.694" x2="84.0228" y2="34.7726" width="0.4064" layer="1"/>
-<via x="14.5796" y="46.0502" extent="1-16" drill="0.35"/>
+<via x="14.3256" y="46.0502" extent="1-16" drill="0.35"/>
 <via x="30.1244" y="44.8564" extent="1-16" drill="0.35"/>
 <via x="34.0614" y="38.608" extent="1-16" drill="0.35"/>
 <via x="30.5562" y="29.4894" extent="1-16" drill="0.35"/>
@@ -3311,6 +3316,54 @@ einem neuen Namen ab.</description>
 <via x="72.7964" y="15.1384" extent="1-16" drill="0.35"/>
 <via x="72.0852" y="29.3624" extent="1-16" drill="0.35"/>
 <via x="39.5478" y="23.1648" extent="1-16" drill="0.35"/>
+<via x="52.5018" y="46.1518" extent="1-16" drill="0.35"/>
+<via x="49.9618" y="46.1518" extent="1-16" drill="0.35"/>
+<via x="47.4218" y="46.1518" extent="1-16" drill="0.35"/>
+<via x="44.8818" y="46.1518" extent="1-16" drill="0.35"/>
+<via x="16.0274" y="46.0502" extent="1-16" drill="0.35"/>
+<via x="12.6492" y="46.0502" extent="1-16" drill="0.35"/>
+<via x="3.4544" y="36.8808" extent="1-16" drill="0.35"/>
+<via x="3.4544" y="35.6108" extent="1-16" drill="0.35"/>
+<via x="3.4544" y="34.3408" extent="1-16" drill="0.35"/>
+<via x="3.4544" y="33.0708" extent="1-16" drill="0.35"/>
+<via x="3.4544" y="31.8008" extent="1-16" drill="0.35"/>
+<via x="3.4544" y="30.5308" extent="1-16" drill="0.35"/>
+<via x="3.4544" y="29.2608" extent="1-16" drill="0.35"/>
+<via x="96.012" y="32.004" extent="1-16" drill="0.35"/>
+<via x="96.012" y="30.226" extent="1-16" drill="0.35"/>
+<via x="96.012" y="28.448" extent="1-16" drill="0.35"/>
+<via x="96.012" y="26.67" extent="1-16" drill="0.35"/>
+<via x="96.012" y="24.892" extent="1-16" drill="0.35"/>
+<via x="96.012" y="23.114" extent="1-16" drill="0.35"/>
+<via x="96.012" y="21.336" extent="1-16" drill="0.35"/>
+<via x="96.012" y="19.558" extent="1-16" drill="0.35"/>
+<via x="96.012" y="17.78" extent="1-16" drill="0.35"/>
+<via x="96.012" y="16.002" extent="1-16" drill="0.35"/>
+<via x="34.6202" y="12.4206" extent="1-16" drill="0.35"/>
+<via x="34.6202" y="11.1506" extent="1-16" drill="0.35"/>
+<via x="34.6202" y="9.8806" extent="1-16" drill="0.35"/>
+<via x="34.6202" y="8.6106" extent="1-16" drill="0.35"/>
+<via x="34.6202" y="7.3406" extent="1-16" drill="0.35"/>
+<via x="34.6202" y="6.0706" extent="1-16" drill="0.35"/>
+<via x="34.6202" y="4.8006" extent="1-16" drill="0.35"/>
+<via x="85.5726" y="44.323" extent="1-16" drill="0.35"/>
+<via x="85.5726" y="42.2148" extent="1-16" drill="0.35"/>
+<via x="85.5726" y="40.132" extent="1-16" drill="0.35"/>
+<via x="67.9196" y="41.9862" extent="1-16" drill="0.35"/>
+<via x="69.6976" y="41.9862" extent="1-16" drill="0.35"/>
+<via x="71.4756" y="41.9862" extent="1-16" drill="0.35"/>
+<via x="53.4416" y="32.9946" extent="1-16" drill="0.35"/>
+<via x="55.4736" y="32.9946" extent="1-16" drill="0.35"/>
+<via x="57.5056" y="32.9946" extent="1-16" drill="0.35"/>
+<via x="59.5122" y="32.9946" extent="1-16" drill="0.35"/>
+<via x="21.5138" y="12.6238" extent="1-16" drill="0.35"/>
+<via x="22.6314" y="12.5984" extent="1-16" drill="0.35"/>
+<via x="23.749" y="12.5984" extent="1-16" drill="0.35"/>
+<via x="22.0472" y="11.8872" extent="1-16" drill="0.35"/>
+<via x="23.1902" y="11.8618" extent="1-16" drill="0.35"/>
+<via x="21.4884" y="11.176" extent="1-16" drill="0.35"/>
+<via x="22.6314" y="11.176" extent="1-16" drill="0.35"/>
+<via x="23.7744" y="11.2014" extent="1-16" drill="0.35"/>
 </signal>
 <signal name="N$11">
 <contactref element="Q1" pad="3"/>
@@ -3555,7 +3608,7 @@ einem neuen Namen ab.</description>
 <wire x1="31.0198" y1="33.147" x2="31.0198" y2="31.9033875" width="0.4064" layer="1"/>
 <wire x1="31.0198" y1="31.9033875" x2="25.0752125" y2="25.9588" width="0.4064" layer="1"/>
 <wire x1="2.667" y1="27.1526" x2="1.279696875" y2="25.765296875" width="0.4064" layer="16"/>
-<wire x1="1.279696875" y1="25.765296875" x2="1.301653125" y2="3.81066875" width="0.3048" layer="16"/>
+<wire x1="1.279696875" y1="25.765296875" x2="1.301653125" y2="3.81066875" width="0.4064" layer="16"/>
 <wire x1="1.301653125" y1="3.81066875" x2="3.073721875" y2="2.0386" width="0.4064" layer="16"/>
 <wire x1="3.073721875" y1="2.0386" x2="23.9014" y2="2.0386" width="0.4064" layer="16"/>
 <via x="23.9014" y="2.0386" extent="1-16" drill="0.35"/>
@@ -4641,30 +4694,39 @@ einem neuen Namen ab.</description>
 <approved hash="19,16,a0c36cd969faa5e0"/>
 <approved hash="19,16,f23d2427237df567"/>
 <approved hash="19,16,5055784f7cd454ce"/>
+<approved hash="3,16,41289c9d5ab58700"/>
 <approved hash="3,1,36a8021a03ea3758"/>
 <approved hash="3,16,36a8021a03ea3758"/>
+<approved hash="19,1,eefa121c1c09e0ef"/>
+<approved hash="19,1,6af494929628684e"/>
+<approved hash="19,1,c758ecbee20dc9eb"/>
+<approved hash="19,1,f46606000687f4e1"/>
+<approved hash="19,1,f26600000e1bfc7d"/>
+<approved hash="19,1,8c00026604098a6f"/>
+<approved hash="19,1,f47aba1cba99f4ff"/>
+<approved hash="19,1,72787f9e70047de2"/>
 <approved hash="19,1,0cf2e5674b7eb2e9"/>
 <approved hash="19,1,16634a794d60117a"/>
+<approved hash="19,1,436c9b7694fa4ce0"/>
 <approved hash="19,1,803f48254ff687ec"/>
 <approved hash="19,1,af8d5b97450cb116"/>
-<approved hash="19,1,436c9b7694fa4ce0"/>
-<approved hash="19,1,044c9456890c1916"/>
 <approved hash="19,1,9c3c0c2608029818"/>
-<approved hash="19,1,959d05870a079a1d"/>
 <approved hash="19,1,18ba88a08906191c"/>
-<approved hash="5,1,9d6ad4ce33751790"/>
+<approved hash="19,1,959d05870a079a1d"/>
+<approved hash="19,1,044c9456890c1916"/>
 <approved hash="19,1,16634a794d60117a"/>
+<approved hash="19,1,436c9b7694fa4ce0"/>
 <approved hash="19,1,803f48254ff687ec"/>
 <approved hash="19,1,a84da6330fc92907"/>
-<approved hash="19,1,436c9b7694fa4ce0"/>
-<approved hash="19,1,ca32e6d5a2a58f2b"/>
 <approved hash="19,1,9c3c0c2608029818"/>
-<approved hash="19,1,959d05870a079a1d"/>
 <approved hash="19,1,18ba88a08906191c"/>
+<approved hash="19,1,959d05870a079a1d"/>
+<approved hash="19,1,ca32e6d5a2a58f2b"/>
+<approved hash="5,1,9d6ad4ce33751790"/>
 <approved hash="5,1,f95bda9d61dc25f2"/>
 <approved hash="19,1,f322a7be6c6fe4d0"/>
-<approved hash="19,1,78a97f761ab3047e"/>
 <approved hash="19,1,c8b8c317626f2a03"/>
+<approved hash="19,1,78a97f761ab3047e"/>
 <approved hash="19,1,c1cde7d7e344c55e"/>
 <approved hash="19,1,6a6dc477c865667f"/>
 <approved hash="19,1,809d2a457143bfea"/>
@@ -4683,15 +4745,15 @@ einem neuen Namen ab.</description>
 <approved hash="19,1,149c96869570176a"/>
 <approved hash="19,1,cdbc9da6a2fff2e5"/>
 <approved hash="19,1,9e8dc497c0709a6a"/>
+<approved hash="5,16,5d2a856933fa9eb5"/>
 <approved hash="19,16,16634a794d60117a"/>
-<approved hash="19,16,803f48254ff687ec"/>
 <approved hash="19,16,436c9b7694fa4ce0"/>
 <approved hash="19,16,af8d5b97450cb116"/>
+<approved hash="19,16,803f48254ff687ec"/>
 <approved hash="19,16,9c3c0c2608029818"/>
-<approved hash="19,16,18ba88a08906191c"/>
 <approved hash="19,16,959d05870a079a1d"/>
+<approved hash="19,16,18ba88a08906191c"/>
 <approved hash="19,16,044c9456890c1916"/>
-<approved hash="5,16,5d2a856933fa9eb5"/>
 <approved hash="19,16,c1cde7d7e344c55e"/>
 <approved hash="19,16,6a6dc477c865667f"/>
 <approved hash="19,16,ddd2fbc8f847de5d"/>
@@ -4709,6 +4771,10 @@ einem neuen Namen ab.</description>
 </board>
 </drawing>
 <compatibility>
+<note version="6.3" minversion="6.2.2" severity="warning">
+Since Version 6.2.2 text objects can contain more than one line,
+which will not be processed correctly with this version.
+</note>
 <note version="8.2" severity="warning">
 Since Version 8.2, EAGLE supports online libraries. The ids
 of those online libraries will not be understood (or retained)
