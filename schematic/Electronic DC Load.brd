@@ -189,7 +189,6 @@
 By XJ
 2017.09</text>
 <text x="98.5012" y="49.3522" size="0.6096" layer="16" font="vector" ratio="15" rot="MR0">2017.09.09</text>
-<circle x="-11.1506" y="16.6116" radius="2.620265625" width="0.2" layer="47"/>
 </plain>
 <libraries>
 <library name="resistor" urn="urn:adsk.eagle:library:348">
