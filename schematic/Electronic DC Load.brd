@@ -1734,12 +1734,12 @@ You are welcome to use this library for commercial purposes. For attribution, we
 <pad name="15" x="3.56" y="15.5" drill="1.016" diameter="1.8796"/>
 <pad name="16" x="6.1" y="15.5" drill="1.016" diameter="1.8796"/>
 <text x="-34.29" y="15.24" size="1.016" layer="51" ratio="15">1</text>
-<hole x="-37.5" y="15.5" drill="2.8"/>
-<hole x="-37.5" y="-15.5" drill="2.8"/>
-<hole x="37.5" y="15.5" drill="2.8"/>
-<hole x="37.5" y="-15.5" drill="2.8"/>
-<text x="-31.75" y="19.05" size="0.6096" layer="25" font="vector" ratio="20">&gt;Name</text>
-<text x="-31.75" y="-19.05" size="0.6096" layer="27" font="vector" ratio="20" align="top-left">&gt;Value</text>
+<hole x="-37.5" y="15.5" drill="3"/>
+<hole x="-37.5" y="-15.5" drill="3"/>
+<hole x="37.5" y="15.5" drill="3"/>
+<hole x="37.5" y="-15.5" drill="3"/>
+<text x="-38.608" y="10.541" size="0.6096" layer="25" font="vector" ratio="20" rot="R90">&gt;Name</text>
+<text x="-39.116" y="-13.462" size="0.6096" layer="27" font="vector" ratio="20" rot="R90" align="top-left">&gt;Value</text>
 </package>
 </packages>
 </library>
@@ -2552,7 +2552,7 @@ You are welcome to use this library for commercial purposes. For attribution, we
 <class number="2" name="sup" width="0" drill="0">
 </class>
 </classes>
-<designrules name="SZ-JLC *">
+<designrules name="SZ-JLC">
 <description language="de">&lt;b&gt;EAGLE Design Rules&lt;/b&gt;
 &lt;p&gt;
 Die Standard-Design-Rules sind so gewählt, dass sie für 
@@ -2575,10 +2575,10 @@ einem neuen Namen ab.</description>
 <param name="mdSmdSmd" value="6mil"/>
 <param name="mdViaViaSameLayer" value="6mil"/>
 <param name="mnLayersViaInSmd" value="2"/>
-<param name="mdCopperDimension" value="1mm"/>
+<param name="mdCopperDimension" value="0.6mm"/>
 <param name="mdDrill" value="10mil"/>
 <param name="mdSmdStop" value="0mil"/>
-<param name="msWidth" value="8mil"/>
+<param name="msWidth" value="7mil"/>
 <param name="msDrill" value="0.35mm"/>
 <param name="msMicroVia" value="9.99mm"/>
 <param name="msBlindViaRatio" value="0.5"/>
@@ -2589,7 +2589,7 @@ einem neuen Namen ab.</description>
 <param name="rvViaInner" value="0.25"/>
 <param name="rvMicroViaOuter" value="0.25"/>
 <param name="rvMicroViaInner" value="0.25"/>
-<param name="rlMinPadTop" value="14mil"/>
+<param name="rlMinPadTop" value="20mil"/>
 <param name="rlMaxPadTop" value="20mil"/>
 <param name="rlMinPadInner" value="10mil"/>
 <param name="rlMaxPadInner" value="20mil"/>
@@ -4772,8 +4772,8 @@ einem neuen Namen ab.</description>
 <approved hash="19,1,ee0612e01404e8e2"/>
 <approved hash="19,1,6e18907e96546832"/>
 <approved hash="19,1,c77cec9ae202c9e4"/>
-<approved hash="19,1,f29a00fc0616f470"/>
 <approved hash="19,1,f04a022c06caf4ac"/>
+<approved hash="19,1,f29a00fc0616f470"/>
 <approved hash="19,1,83780d1e0e058063"/>
 <approved hash="19,1,f056be30bad4f4b2"/>
 <approved hash="19,1,72447fa2780875ee"/>
@@ -4786,6 +4786,7 @@ einem neuen Namen ab.</description>
 <approved hash="19,1,960206180924993e"/>
 <approved hash="19,1,1a0c8a16890c1916"/>
 <approved hash="19,1,057c9566961c0606"/>
+<approved hash="5,1,1ddd57f5b1b49546"/>
 <approved hash="19,1,86dc4ec64ff987e3"/>
 <approved hash="19,1,2e0c72164f80139a"/>
 <approved hash="19,1,37fb24808d0aabb0"/>
@@ -4794,7 +4795,6 @@ einem neuen Namen ab.</description>
 <approved hash="19,1,960206180924993e"/>
 <approved hash="19,1,1a0c8a16890c1916"/>
 <approved hash="19,1,56cff9d7a21d90e6"/>
-<approved hash="5,1,1ddd57f5b1b49546"/>
 <approved hash="5,1,fbdad81e6095a7cf"/>
 <approved hash="19,1,736125caed3f6615"/>
 <approved hash="19,1,4aca4044e313a8d8"/>
