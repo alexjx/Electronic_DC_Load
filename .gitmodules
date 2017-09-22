@@ -1,0 +1,12 @@
+[submodule "lib/encoder"]
+	path = lib/encoder
+	url = https://github.com/0xPIT/encoder.git
+[submodule "code/lib/encoder"]
+	path = code/lib/encoder
+	url = https://github.com/0xPIT/encoder.git
+[submodule "code/lib/TimerOne"]
+	path = code/lib/TimerOne
+	url = https://github.com/PaulStoffregen/TimerOne.git
+[submodule "code/lib/LiquidCrystal_I2C"]
+	path = code/lib/LiquidCrystal_I2C
+	url = https://github.com/marcoschwartz/LiquidCrystal_I2C.git
