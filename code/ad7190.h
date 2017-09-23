@@ -112,8 +112,9 @@ class AD7190
 {
 private:
     uint8_t _cs_pin;
-    uint8_t _gain_factor;
     uint8_t _gain;
+    uint8_t _gain_factor;
+    uint8_t _data_sta;
 
 protected:
     void _SPI_Transfer(uint8_t* data, uint8_t nr)
@@ -124,7 +125,7 @@ protected:
         SPI.endTransaction();
     }
 
-    uint32_t _ReadRegister(uint8_t reg, uint8_t nr)
+    uint32_t _readRegister(uint8_t reg, uint8_t nr)
     {
         uint8_t word[5] = {0, 0, 0, 0, 0};
         uint32_t buffer = 0;
@@ -139,7 +140,7 @@ protected:
         return buffer;
     }
 
-    void _WriteRegister(uint8_t reg, uint32_t val, uint8_t nr)
+    void _writeRegister(uint8_t reg, uint32_t val, uint8_t nr)
     {
         uint8_t cmd[5] = {0, 0, 0, 0, 0};
         uint8_t c_nr = nr;
@@ -153,7 +154,7 @@ protected:
         _SPI_Transfer(cmd, nr + 1);
     }
 
-    void _WaitDataReady()
+    void _waitDataReady()
     {
         loop_until_bit_is_clear(PINB, 4);
     }
@@ -163,7 +164,10 @@ protected:
 public:
 
     AD7190(uint8_t cs_pin) :
-        _cs_pin(cs_pin), _gain(1)
+        _cs_pin(cs_pin),
+        _gain(1),
+        _gain_factor(1),
+        _data_sta(0)
     {
 
     }
@@ -193,119 +197,130 @@ public:
     {
         reset();
         // wait for ID
-        uint32_t regVal = _ReadRegister(AD7190_REG_ID, 1);
+        uint32_t regVal = _readRegister(AD7190_REG_ID, 1);
         if ((regVal & AD7190_ID_MASK) != ID_AD7190) {
             return false;
         }
-        // // always set the DATA STATUS bit
-        // uint32_t val = _ReadRegister(AD7190_REG_MODE, 3);
-        // val |= AD7190_MODE_DAT_STA;
-        // _WriteRegister(AD7190_REG_MODE, val, 3);
         return true;
     }
 
-    void BeginTransaction()
+    void beginTransaction()
     {
         digitalWrite(_cs_pin, LOW);
     }
 
-    void EndTransaction()
+    void endTransaction()
     {
         digitalWrite(_cs_pin, HIGH);
     }
 
-    uint32_t ReadDataRegister()
+    void configDataStatus(int enable)
     {
-        _WaitDataReady();
-        return _ReadRegister(AD7190_REG_DATA, 4);
+        uint32_t val = _readRegister(AD7190_REG_MODE, 3);
+        val &= ~AD7190_MODE_DAT_STA;  // clear current mode
+        if (enable) {
+            val |= AD7190_MODE_DAT_STA;
+        }
+        _data_sta = enable;
+        _writeRegister(AD7190_REG_MODE, val, 3);
     }
 
-    uint32_t ReadModeRegister()
+    uint32_t readDataRegister()
     {
-        return _ReadRegister(AD7190_REG_MODE, 3);
+        _waitDataReady();
+        if (_data_sta) {
+            return _readRegister(AD7190_REG_DATA, 4);
+        } else {
+            return _readRegister(AD7190_REG_DATA, 3);
+        }
     }
 
-    uint32_t ReadConfigRegister()
+    uint32_t readModeRegister()
     {
-        return _ReadRegister(AD7190_REG_CONF, 3);
+        return _readRegister(AD7190_REG_MODE, 3);
     }
 
-    uint8_t GetMode()
+    uint32_t readConfigRegister()
     {
-        uint32_t val = _ReadRegister(AD7190_REG_MODE, 3);
+        return _readRegister(AD7190_REG_CONF, 3);
+    }
+
+    uint8_t getMode()
+    {
+        uint32_t val = _readRegister(AD7190_REG_MODE, 3);
         val &= AD7190_MODE_SEL(7ul);
         return (uint8_t)(val >> 21);
     }
 
-    void SetMode(uint8_t mode)
+    void setMode(uint8_t mode)
     {
-        uint32_t val = _ReadRegister(AD7190_REG_MODE, 3);
+        uint32_t val = _readRegister(AD7190_REG_MODE, 3);
         val &= ~AD7190_MODE_SEL(7ul);  // clear current mode
         val |= AD7190_MODE_SEL(mode);
-        _WriteRegister(AD7190_REG_MODE, val, 3);
+        _writeRegister(AD7190_REG_MODE, val, 3);
     }
 
-    void ConfigClock(int src)
+    void configClock(int src)
     {
-        uint32_t val = _ReadRegister(AD7190_REG_MODE, 3);
+        uint32_t val = _readRegister(AD7190_REG_MODE, 3);
         val ^= AD7190_MODE_CLKMSK(val);
         val |= AD7190_MODE_CLKSRC(src);
-        _WriteRegister(AD7190_REG_MODE, val, 3);
+        _writeRegister(AD7190_REG_MODE, val, 3);
     }
 
-    void ConfigFilter(uint16_t rate)
+    void configFilter(uint16_t rate)
     {
-        uint32_t val = _ReadRegister(AD7190_REG_MODE, 3);
+        uint32_t val = _readRegister(AD7190_REG_MODE, 3);
         val ^= AD7190_MODE_RATE(val);
         val |= AD7190_MODE_RATE(rate);
-        _WriteRegister(AD7190_REG_MODE, val, 3);
+        _writeRegister(AD7190_REG_MODE, val, 3);
     }
 
     // Config Reg
-    void ConfigChop(int enable)
+    void configChop(int enable)
     {
-        uint32_t val = _ReadRegister(AD7190_REG_CONF, 3);
+        uint32_t val = _readRegister(AD7190_REG_CONF, 3);
         if (enable) {
             val |= AD7190_CONF_CHOP;
         } else {
             val &= ~AD7190_CONF_CHOP;
         }
-        _WriteRegister(AD7190_REG_CONF, val, 3);
+        _writeRegister(AD7190_REG_CONF, val, 3);
     }
 
-    void ConfigBuffer(int enable)
+    void configBuffer(int enable)
     {
-        uint32_t val = _ReadRegister(AD7190_REG_CONF, 3);
+        uint32_t val = _readRegister(AD7190_REG_CONF, 3);
         if (enable) {
             val |= AD7190_CONF_BUF;
         } else {
             val &= ~AD7190_CONF_BUF;
         }
-        _WriteRegister(AD7190_REG_CONF, val, 3);
+        _writeRegister(AD7190_REG_CONF, val, 3);
     }
 
-    void ConfigUnipolar(int enable)
+    void configUnipolar(int enable)
     {
-        uint32_t val = _ReadRegister(AD7190_REG_CONF, 3);
+        uint32_t val = _readRegister(AD7190_REG_CONF, 3);
         if (enable) {
             val |= AD7190_CONF_UNIPOLAR;
         } else {
             val &= ~AD7190_CONF_UNIPOLAR;
         }
-        _WriteRegister(AD7190_REG_CONF, val, 3);
+        _writeRegister(AD7190_REG_CONF, val, 3);
     }
 
-    bool SetGain(uint8_t gain)
+    bool setGain(uint8_t gain)
     {
         if (_gain == gain) {
             return false;
         }
 
-        uint32_t val = _ReadRegister(AD7190_REG_CONF, 3);
+        uint32_t val = _readRegister(AD7190_REG_CONF, 3);
         uint8_t g = AD7190_CONF_GAIN(val);
         val ^= g;
         val |= AD7190_CONF_GAIN(gain);
-        _WriteRegister(AD7190_REG_CONF, val, 3);
+        _writeRegister(AD7190_REG_CONF, val, 3);
 
         switch (gain) {
             case AD7190_CONF_GAIN_1:
@@ -331,71 +346,59 @@ public:
         return true;
     }
 
-    uint8_t GetGain()
+    uint8_t getGain()
     {
-        uint32_t val = _ReadRegister(AD7190_REG_CONF, 3);
+        uint32_t val = _readRegister(AD7190_REG_CONF, 3);
         _gain = (uint8_t)(AD7190_CONF_GAIN(val));
         return _gain;
     }
 
-    uint8_t GetGainFactor()
+    uint8_t getGainFactor()
     {
         return _gain_factor;
     }
 
-    void CalibrateInternalScale()
+    void calibrateInternalScale()
     {
         // We will hold CS pin low
-        SetMode(AD7190_MODE_CAL_INT_FULL);
-        _WaitDataReady();
+        setMode(AD7190_MODE_CAL_INT_FULL);
+        _waitDataReady();
     }
 
-    void CalibrateInternalZero()
+    void calibrateInternalZero()
     {
         // We will hold CS pin low
-        SetMode(AD7190_MODE_CAL_INT_ZERO);
-        _WaitDataReady();
+        setMode(AD7190_MODE_CAL_INT_ZERO);
+        _waitDataReady();
     }
 
-    void Calibrate(uint8_t chn)
+    void calibrate(uint8_t chn)
     {
-        ConfigChannel(chn);
-        CalibrateInternalZero();
-        CalibrateInternalScale();
+        configChannel(chn);
+        calibrateInternalZero();
+        calibrateInternalScale();
     }
 
-    void EnableChannel(int chn)
+    void enableChannel(int chn)
     {
-        uint32_t val = _ReadRegister(AD7190_REG_CONF, 3);
+        uint32_t val = _readRegister(AD7190_REG_CONF, 3);
         val |= AD7190_CONF_CHAN(chn);
-        _WriteRegister(AD7190_REG_CONF, val, 3);
+        _writeRegister(AD7190_REG_CONF, val, 3);
     }
 
-    void DisableChannel(int chn)
+    void disableChannel(int chn)
     {
-        uint32_t val = _ReadRegister(AD7190_REG_CONF, 3);
+        uint32_t val = _readRegister(AD7190_REG_CONF, 3);
         val ^= AD7190_CONF_CHAN(chn);
-        _WriteRegister(AD7190_REG_CONF, val, 3);
+        _writeRegister(AD7190_REG_CONF, val, 3);
     }
 
-    void ConfigChannel(int chn)
+    void configChannel(int chn)
     {
-        uint32_t val = _ReadRegister(AD7190_REG_CONF, 3);
+        uint32_t val = _readRegister(AD7190_REG_CONF, 3);
         val &= ~(0xfflu << 8);
         val |= AD7190_CONF_CHAN(chn);
-        _WriteRegister(AD7190_REG_CONF, val, 3);
-    }
-
-    uint32_t Sample(int chn, int gain)
-    {
-        ConfigChannel(chn);
-        if (SetGain(gain)) {
-            CalibrateInternalZero();
-            CalibrateInternalScale();
-        }
-        SetMode(AD7190_MODE_SINGLE);
-        _WaitDataReady();
-        return ReadDataRegister();
+        _writeRegister(AD7190_REG_CONF, val, 3);
     }
 };
 

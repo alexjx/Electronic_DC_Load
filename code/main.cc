@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include <Wire.h>
 #include <SPI.h>
 #include <TimerOne.h>
@@ -5,8 +6,7 @@
 #include <ClickEncoder.h>
 
 #include "ad5541.h"
-#include "ad7190.h"
-
+#include "adc.h"
 
 // Hardware Configuration
 #define LCD_IIC_ADDRESS      0x20
@@ -40,20 +40,16 @@
 
 // Constants
 const double VREF_VOLTAGE = 5000.0;  // mV
-const struct {
-    uint8_t value;
-    double lower;
-} gains[MAX_GAINS] = {
-    {AD7190_CONF_GAIN_1, 600.0},  // AD7190_CONF_GAIN_1
-    {AD7190_CONF_GAIN_8, 0.0},  // AD7190_CONF_GAIN_8
-    // {AD7190_CONF_GAIN_32, 0.0},   // AD7190_CONF_GAIN_32
-};
+
 
 // DAC
 AD5541 ad5541(DAC_CS_PIN);
 
 // ADC
-AD7190 ad7190(ADC_CS_PIN);
+ADConverter adc(ADC_CS_PIN,
+                ADC_VOLTAGE_CHN,
+                ADC_CURRENT_CHN,
+                VREF_VOLTAGE);
 
 
 // LCD
@@ -94,7 +90,9 @@ struct {
 
     // ADC value
     double current;
+    uint8_t current_gain;
     double voltage;
+    uint8_t voltage_gain;
 
     struct {
         double offset;
@@ -121,37 +119,6 @@ struct {
 void timer_one_isr()
 {
     encoder.service();
-}
-
-
-// ADC helper
-double ReadADC(int chn)
-{
-    double voltage = 0.0;
-    ad7190.BeginTransaction();
-
-    ad7190.ConfigChannel(chn);
-    for (int i = 0; i < MAX_GAINS; i++) {
-        ad7190.SetGain(gains[i].value);
-        ad7190.SetMode(AD7190_MODE_SINGLE);
-        uint32_t value = ad7190.ReadDataRegister();
-        uint8_t gain_factor = ad7190.GetGainFactor();
-        uint8_t status = (uint8_t)(value & 0xFF);
-        value >>= 8;
-
-        // calculate the voltage
-        voltage = (double)value * VREF_VOLTAGE / AD7190_CODES / gain_factor;
-        voltage *= g_cb.calib[i].scale;
-        voltage += g_cb.calib[i].offset;
-
-        // if we could not use a better resolution call it
-        if (voltage > gains[i].lower) {
-            break;
-        }
-    }
-
-    ad7190.EndTransaction();
-    return voltage;
 }
 
 
@@ -190,13 +157,11 @@ void UpdateEncoder()
 void UpdateCurrentVoltage()
 {
     // update current data, no need for idle
-    if (g_cb.state == STATE_IDLE) {
-        g_cb.current = 0.0;
-    } else {
-        g_cb.current = ReadADC(ADC_CURRENT_CHN) / 50.0 / 0.005 / 1000.0;
+    if (g_cb.state != STATE_IDLE) {
+        adc.updateCurrent();
     }
     // update voltage
-    g_cb.voltage = ReadADC(ADC_VOLTAGE_CHN) * 10.09 / 1000.0;
+    adc.updateVoltage();
 }
 
 
@@ -264,9 +229,9 @@ void UpdateDisplay()
     // Line 2 - Current Sensing, Voltage Sensing:
     //   ss.ssssA vvv.vvvV
     lcd.setCursor(0, 1);
-    DisplayFixedDouble(g_cb.current, 6, 3);
+    DisplayFixedDouble(adc.readCurrent(), 6, 3);
     lcd.print("A ");
-    DisplayFixedDouble(g_cb.voltage, 6, 3);
+    DisplayFixedDouble(adc.readVoltage(), 6, 3);
     lcd.print("V ");
 }
 
@@ -339,39 +304,31 @@ void setup()
     // LCD
     lcd.init();
     lcd.home();
-    lcd.print("DC Active Load");
+    lcd.print("@DC Active Load@");
     lcd.setCursor(0, 1);
-    lcd.print("R20170922");
+    lcd.print("       R20170923");
 
     // SPI
     SPI.begin();
+
+    // Timer
+    Timer1.initialize(1000);
+    Timer1.attachInterrupt(timer_one_isr);
 
     // VREF
     analogReference(EXTERNAL);
 
     // ADC
-    ad7190.begin();
-    ad7190.BeginTransaction();
-    while (!ad7190.init()) {
+    adc.begin();
+    while (!adc.detectDevice()) {
         lcd.clear();
-        lcd.print("ADC Error");
-        delay(200);
+        lcd.print("ADC ERROR");
+        delay(300);
     }
-    ad7190.ConfigUnipolar(1);
-    ad7190.ConfigFilter(48);
-    ad7190.SetGain(AD7190_CONF_GAIN_1);
-    ad7190.Calibrate(AD7190_CH_AIN1P_AINCOM);
-    ad7190.Calibrate(AD7190_CH_AIN2P_AINCOM);
-    ad7190.SetMode(AD7190_MODE_PWRDN);
-    ad7190.EndTransaction();
+    adc.init();
     // FIXME: Calibration data should be gotten from EEPROM
-    g_cb.calib[0].scale = 1.0;
-    g_cb.calib[0].offset = 2.5;
-    g_cb.calib[1].scale = 1.0;
-
-    // Timer
-    Timer1.initialize(1000);
-    Timer1.attachInterrupt(timer_one_isr);
+    adc.setCalibData(AD7190_CONF_GAIN_1, 0.99955, 2.5);
+    adc.setCalibData(AD7190_CONF_GAIN_8, 1.0, 0);
 
     // Buttons
     pinMode(BUTTON_1_PIN, INPUT);

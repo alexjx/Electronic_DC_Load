@@ -43,7 +43,7 @@ CXXFLAGS_STD      = -std=gnu++11
 
 ### CPPFLAGS
 ### Flags you might want to set for debugging purpose. Comment to stop.
-CXXFLAGS          = -pedantic -Wall -Wextra -fdiagnostics-color -Os
+CXXFLAGS          = -pedantic -Wall -Wextra -Os
 
 ### MONITOR_PORT
 ### The port your board is connected to. Using an '*' tries all the ports and finds the right one. Choose one of the two.
