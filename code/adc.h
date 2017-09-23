@@ -169,11 +169,13 @@ public:
     double updateVoltage() __attribute__((always_inline))
     {
         _chan[CHANNEL_VOLTAGE].value = _read<CHANNEL_VOLTAGE>() * 10.09 / 1000.0;
+        return readVoltage();
     }
 
     double updateCurrent() __attribute__((always_inline))
     {
         _chan[CHANNEL_CURRENT].value = _read<CHANNEL_CURRENT>() / 50.0 / 0.005 / 1000.0;
+        return readCurrent();
     }
 
     double readVoltage() __attribute__((always_inline))
