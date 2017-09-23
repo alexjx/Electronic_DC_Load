@@ -7,6 +7,7 @@
 
 #include "ad5541.h"
 #include "adc.h"
+#include "button.h"
 
 // Hardware Configuration
 #define LCD_IIC_ADDRESS      0x20
@@ -28,11 +29,8 @@
 #define BUTTON_4_PIN         5
 
 #define FAN_SW_PIN           7
-
 #define LM35_PIN             A3
 
-#define DEBOUND_DELAY        330
-#define MAX_GAINS            2
 #define MAX_BUTTON           4
 
 #define ADC_CURRENT_CHN      AD7190_CH_AIN2P_AINCOM
@@ -64,6 +62,15 @@ ClickEncoder encoder(ENCODER_PIN_1,
                      ENCODER_UPDATE_RATE);
 
 
+// Buttons
+Button buttons[MAX_BUTTON] {
+    BUTTON_1_PIN,
+    BUTTON_2_PIN,
+    BUTTON_3_PIN,
+    BUTTON_4_PIN,
+};
+
+
 enum OPTERATION_STATE
 {
     STATE_IDLE = 1,
@@ -76,13 +83,6 @@ enum OPTERATION_STATE
 
 // Global Data
 struct {
-
-    // button status
-    struct {
-        uint8_t active;
-        uint32_t time;
-
-    } buttons[MAX_BUTTON];
 
     // encoder value
     int16_t encoder_val;
@@ -113,26 +113,9 @@ void timer_one_isr()
 
 void UpdateButtons()
 {
-    uint32_t now = millis();
-#define UPDATE_BUTTON(index)                                                          \
-    {                                                                                 \
-        if (!g_cb.buttons[index - 1].active && !digitalRead(BUTTON_##index##_PIN)) {      \
-            if (g_cb.buttons[index - 1].time + DEBOUND_DELAY < now) {                     \
-                g_cb.buttons[index - 1].active = 1;                                       \
-                g_cb.buttons[index - 1].time = now;                                       \
-            }                                                                         \
-        } else if (g_cb.buttons[index - 1].active && digitalRead(BUTTON_##index##_PIN)) { \
-            if (g_cb.buttons[index - 1].time + DEBOUND_DELAY < now) {                     \
-                g_cb.buttons[index - 1].active = 0;                                       \
-                g_cb.buttons[index - 1].time = now;                                       \
-            }                                                                         \
-        }                                                                             \
+    for (int i = MAX_BUTTON; i > 0; i--) {
+        buttons[i - 1].update();
     }
-    UPDATE_BUTTON(1);
-    UPDATE_BUTTON(2);
-    UPDATE_BUTTON(3);
-    UPDATE_BUTTON(4);
-#undef UPDATE_BUTTON
 }
 
 
@@ -238,50 +221,44 @@ void ProcessControl()
         digitalWrite(FAN_SW_PIN, LOW);
     }
 
-    if (g_cb.buttons[2].active && g_cb.buttons[3].active && (g_cb.buttons[2].time + 3000.0 < now)) {
-        g_cb.state = STATE_CALIBRATION;
+    int32_t set_point = g_cb.dac_set_point;
+    // set point change
+    if (buttons[0].isActive()) {
+        set_point += 0x100;
+    } else if (buttons[1].isActive()) {
+        set_point -= 0x100;
+    } else if (buttons[2].isActive()) {
+        set_point += 0x10;
+    } else if (buttons[3].isActive()) {
+        set_point -= 0x10;
     }
-    else
-    {
-        int32_t set_point = g_cb.dac_set_point;
-        // set point change
-        if (g_cb.buttons[0].active) {
-            set_point += 0x100;
-        } else if (g_cb.buttons[1].active) {
-            set_point -= 0x100;
-        } else if (g_cb.buttons[2].active) {
-            set_point += 0x10;
-        } else if (g_cb.buttons[3].active) {
-            set_point -= 0x10;
-        }
-        set_point += g_cb.encoder_val;
-        set_point = constrain(set_point, AD5541_CODE_LOW, AD5541_CODE_HIGH);
+    set_point += g_cb.encoder_val;
+    set_point = constrain(set_point, AD5541_CODE_LOW, AD5541_CODE_HIGH);
 
-        // State change event
-        if (g_cb.state == STATE_IDLE &&
-            g_cb.encoder_btn == ClickEncoder::Held &&
-            g_cb.state_time + 3000.0 < now)
+    // State change event
+    if (g_cb.state == STATE_IDLE &&
+        g_cb.encoder_btn == ClickEncoder::Held &&
+        g_cb.state_time + 3000.0 < now)
+    {
+        // IDLE -> RUNNING
+        g_cb.state = STATE_RUNNING;
+        g_cb.state_time = now;
+        ad5541.setValue(set_point);
+    }
+    else if (g_cb.state == STATE_RUNNING)
+    {
+        if (g_cb.encoder_btn == ClickEncoder::Clicked)
         {
-            // IDLE -> RUNNING
-            g_cb.state = STATE_RUNNING;
-            g_cb.state_time = now;
+            g_cb.state = STATE_IDLE;
+            ad5541.setValue(0);
+        }
+        else if (g_cb.dac_set_point != set_point)
+        {
             ad5541.setValue(set_point);
         }
-        else if (g_cb.state == STATE_RUNNING)
-        {
-            if (g_cb.encoder_btn == ClickEncoder::Clicked)
-            {
-                g_cb.state = STATE_IDLE;
-                ad5541.setValue(0);
-            }
-            else if (g_cb.dac_set_point != set_point)
-            {
-                ad5541.setValue(set_point);
-            }
-        }
-
-        g_cb.dac_set_point = set_point;
     }
+
+    g_cb.dac_set_point = set_point;
 }
 
 
@@ -295,7 +272,7 @@ void setup()
     lcd.home();
     lcd.print("@DC Active Load@");
     lcd.setCursor(0, 1);
-    lcd.print("       R20170923");
+    lcd.print("       20170924");
 
     // SPI
     SPI.begin();
@@ -320,10 +297,10 @@ void setup()
     adc.setCalibData(AD7190_CONF_GAIN_8, 0.99880, 0);
 
     // Buttons
-    pinMode(BUTTON_1_PIN, INPUT);
-    pinMode(BUTTON_2_PIN, INPUT);
-    pinMode(BUTTON_3_PIN, INPUT);
-    pinMode(BUTTON_4_PIN, INPUT);
+    buttons[0].init();
+    buttons[1].init();
+    buttons[2].init();
+    buttons[3].init();
 
     // FAN
     pinMode(FAN_SW_PIN, OUTPUT);
