@@ -88,17 +88,6 @@ struct {
     int16_t encoder_val;
     ClickEncoder::Button encoder_btn;
 
-    // ADC value
-    double current;
-    uint8_t current_gain;
-    double voltage;
-    uint8_t voltage_gain;
-
-    struct {
-        double offset;
-        double scale;
-    } calib[MAX_GAINS];
-
     // DAC
     int32_t dac_set_point;
 
@@ -328,7 +317,7 @@ void setup()
     adc.init();
     // FIXME: Calibration data should be gotten from EEPROM
     adc.setCalibData(AD7190_CONF_GAIN_1, 0.99955, 2.5);
-    adc.setCalibData(AD7190_CONF_GAIN_8, 1.0, 0);
+    adc.setCalibData(AD7190_CONF_GAIN_8, 0.99880, 0);
 
     // Buttons
     pinMode(BUTTON_1_PIN, INPUT);
