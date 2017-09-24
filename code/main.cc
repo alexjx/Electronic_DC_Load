@@ -8,6 +8,7 @@
 #include "ad5541.h"
 #include "adc.h"
 #include "button.h"
+#include "fan.h"
 
 // Hardware Configuration
 #define LCD_IIC_ADDRESS      0x20
@@ -69,6 +70,10 @@ Button buttons[MAX_BUTTON] {
     BUTTON_3_PIN,
     BUTTON_4_PIN,
 };
+
+
+// FAN
+FanController fan(FAN_SW_PIN);
 
 
 enum OPTERATION_STATE
@@ -213,12 +218,10 @@ void ProcessControl()
     uint32_t now = millis();
 
     // temperature control
-    if (g_cb.temperature > 40.0 && !g_cb.fan_is_on) {
-        g_cb.fan_is_on = true;
-        digitalWrite(FAN_SW_PIN, HIGH);
-    } else if (g_cb.temperature < 35.0 && g_cb.fan_is_on) {
-        g_cb.fan_is_on = false;
-        digitalWrite(FAN_SW_PIN, LOW);
+    if (g_cb.temperature > 40.0 && !fan.isOn()) {
+        fan.turn_on();
+    } else if (g_cb.temperature < 35.0 && fan.isOn()) {
+        fan.turn_off();
     }
 
     int32_t set_point = g_cb.dac_set_point;
