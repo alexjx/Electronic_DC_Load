@@ -9,6 +9,7 @@
 #include "adc.h"
 #include "button.h"
 #include "fan.h"
+#include "setter.h"
 
 // Hardware Configuration
 #define LCD_IIC_ADDRESS      0x20
@@ -86,18 +87,18 @@ enum OPTERATION_STATE
 };
 
 
+// Setter
+Setter current_set_point;
+
+
 // Global Data
 struct {
 
     // encoder value
-    int16_t encoder_val;
     ClickEncoder::Button encoder_btn;
 
     // DAC
     int32_t dac_set_point;
-
-    // FAN
-    uint8_t fan_is_on;
 
     // temperature
     double temperature;
@@ -127,7 +128,6 @@ void UpdateButtons()
 void UpdateEncoder()
 {
     g_cb.encoder_btn = encoder.getButton();
-    g_cb.encoder_val = encoder.getValue();
 }
 
 
@@ -184,12 +184,14 @@ void DisplayFixedDouble(double value, int width, int prec)
 
 void UpdateDisplay()
 {
+    lcd.noCursor();
+
     // Display
     // Line 1 - Current Set Point, temperature:
     //   aa.aaaA ttt.ttC X
     lcd.setCursor(0, 0);
-    DisplayFixedDouble((double)g_cb.dac_set_point * VREF_VOLTAGE / (double)AD5541_CODES / 1000.0, 6, 4);
-    lcd.print("V ");
+    DisplayFixedDouble(current_set_point.as_double(), 6, 3);
+    lcd.print("A ");
     DisplayFixedDouble(g_cb.temperature, 5, 2);
     lcd.print("C ");
     // FIXME: print out status
@@ -210,6 +212,14 @@ void UpdateDisplay()
     lcd.print("A ");
     DisplayFixedDouble(adc.readVoltage(), 6, 3);
     lcd.print("V ");
+
+    uint8_t bit = 5 - current_set_point.current_bit();
+    if (bit < 3) {
+        bit -= 1;
+    }
+    lcd.setCursor(bit, 0);
+    lcd.cursor();
+
 }
 
 
@@ -224,19 +234,15 @@ void ProcessControl()
         fan.turn_off();
     }
 
-    int32_t set_point = g_cb.dac_set_point;
-    // set point change
-    if (buttons[0].isActive()) {
-        set_point += 0x100;
-    } else if (buttons[1].isActive()) {
-        set_point -= 0x100;
+    if (buttons[1].isActive()) {
+        current_set_point.move_left();
     } else if (buttons[2].isActive()) {
-        set_point += 0x10;
-    } else if (buttons[3].isActive()) {
-        set_point -= 0x10;
+        current_set_point.move_right();
     }
-    set_point += g_cb.encoder_val;
-    set_point = constrain(set_point, AD5541_CODE_LOW, AD5541_CODE_HIGH);
+    current_set_point.increase(encoder.getValue());
+
+    // FIXME: change this to PID
+    uint16_t set_point = 0;
 
     // State change event
     if (g_cb.state == STATE_IDLE &&
@@ -275,7 +281,7 @@ void setup()
     lcd.home();
     lcd.print("@DC Active Load@");
     lcd.setCursor(0, 1);
-    lcd.print("       20170924");
+    lcd.print("       20170925");
 
     // SPI
     SPI.begin();
@@ -306,8 +312,7 @@ void setup()
     buttons[3].init();
 
     // FAN
-    pinMode(FAN_SW_PIN, OUTPUT);
-    digitalWrite(FAN_SW_PIN, g_cb.fan_is_on);
+    fan.init();
 
     // DAC
     ad5541.begin();

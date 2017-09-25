@@ -6,6 +6,7 @@
 //
 const double GAIN_8_HIGH = 600.0;
 const double GAIN_1_LOW = 550.0;
+const int DIGITAL_FILTER_WORDS = 48;
 
 
 // Calibrate Data for different gains
@@ -159,7 +160,7 @@ public:
         // this is to workaround the different gains
         // of current and voltage.
         _ad7190.configUnipolar(1);
-        _ad7190.configFilter(48);
+        _ad7190.configFilter(DIGITAL_FILTER_WORDS);
         _ad7190.setGain(AD7190_CONF_GAIN_1);
         _ad7190.calibrate(_chan[CHANNEL_VOLTAGE].channel);
         _ad7190.calibrate(_chan[CHANNEL_CURRENT].channel);

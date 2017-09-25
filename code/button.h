@@ -2,9 +2,6 @@
 #define __BUTTON_H__
 
 
-#define DEBOUND_DELAY        220
-
-
 class Button
 {
 private:
@@ -27,15 +24,12 @@ public:
     void update()
     {
         uint32_t now = millis();
-        if (_time + DEBOUND_DELAY < now) {
-            if (!_active && !digitalRead(_pin)) {
-                _active = 1;
-                _time = now;
-            } else if (_active && digitalRead(_pin)) {
-                _active = 0;
-                _time = now;
-            }
-
+        if (!_active && !digitalRead(_pin)) {
+            _active = 1;
+            _time = now;
+        } else if (_active && digitalRead(_pin)) {
+            _active = 0;
+            _time = now;
         }
     }
 
