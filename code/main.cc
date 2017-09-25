@@ -257,10 +257,14 @@ void ProcessControl()
     // FIXME: change this to PID
     static uint32_t last;
     double e = current_set_point.as_double() - adc.readCurrent();
-    double p_term = e * 333; // _kP
+    if (e > -0.0007 && e < 0.0007) {
+        e = 0.0; // dead band
+    }
+    double p_term = e * 300; // _kP
     // double i_term = e * (now - last) * 10;
     // double d_term = e / (now - last) * 20;
     // double pid_sum = p_term + i_term + d_term;
+    last = now;
     double pid_sum = p_term * 10.0;
 
     if (buttons[0].isRaisingEdge()) {
@@ -272,11 +276,13 @@ void ProcessControl()
         lcd.print(" ");
         lcd.print(pid_sum);
         lcd.setCursor(0, 1);
-        delay(10000);
+        lcd.print(ad5541.getValue(), HEX);
+        delay(2000);
     }
 
-    uint16_t set_point = ad5541.getValue();
-    set_point += (int16_t)pid_sum;
+    int32_t set_point = ad5541.getValue();
+    set_point += (int32_t)pid_sum;
+    set_point = constrain(set_point, AD5541_CODE_LOW, AD5541_CODE_HIGH);
 
     // State change event
     ClickEncoder::Button encoder_btn = encoder.getButton();
@@ -314,10 +320,15 @@ void setup()
     lcd.home();
     lcd.print("@DC Active Load@");
     lcd.setCursor(0, 1);
-    lcd.print("       20170925");
+    lcd.print("       20170926");
+    lcd.home();
 
     // SPI
     SPI.begin();
+
+    // DAC
+    ad5541.begin();
+    ad5541.setValue(0);
 
     // Timer
     Timer1.initialize(1000);
@@ -333,10 +344,11 @@ void setup()
         lcd.print("ADC ERROR");
         delay(300);
     }
+    delay(10);
     adc.init();
     // FIXME: Calibration data should be gotten from EEPROM
     adc.setCalibData(AD7190_CONF_GAIN_1, 0.99955, 2.5);
-    adc.setCalibData(AD7190_CONF_GAIN_8, 0.99950, -0.5);
+    adc.setCalibData(AD7190_CONF_GAIN_8, 0.99810, -0.30);
 
     // Buttons
     buttons[0].init();
@@ -346,10 +358,6 @@ void setup()
 
     // FAN
     fan.init();
-
-    // DAC
-    ad5541.begin();
-    ad5541.setValue(0);
 
     // get lcd ready for using information
     delay(2000);

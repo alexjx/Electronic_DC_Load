@@ -7,12 +7,13 @@
 #define AD5541_CODE_LOW    0
 #define AD5541_CODE_HIGH   65535u
 
-class AD5541 {
-protected:
-    int32_t _current;
-    uint16_t _fast_mode;
-    int _fs_pin;
+class AD5541
+{
+private:
+    uint16_t _current;
     int _cs_pin;
+
+protected:
 
     void send_to_device() {
         // Send CS signal
@@ -20,15 +21,16 @@ protected:
         delayMicroseconds(1);  // datsheet only need 10ns
         SPISettings setting(AD5541_SPI_SPEED, MSBFIRST, SPI_MODE0);
         SPI.beginTransaction(setting);
-        SPI.transfer16((uint16_t)_current);
-        SPI.endTransaction();
+        SPI.transfer16(_current);
+        delayMicroseconds(1);  // datsheet only need 10ns
         digitalWrite(_cs_pin, HIGH);
+        SPI.endTransaction();
     }
 
 public:
-    AD5541(int cs_pin)
+    AD5541(int cs_pin) :
+        _cs_pin(cs_pin)
     {
-    	_cs_pin = cs_pin;
         _current = 0;
     }
 
@@ -38,16 +40,14 @@ public:
         digitalWrite(_cs_pin, HIGH);
     }
 
-    void setValue(int32_t value)
+    void setValue(uint16_t value)
     {
         value = constrain(value, AD5541_CODE_LOW, AD5541_CODE_HIGH);
-        if (value != _current) {
-            _current = value;
-            send_to_device();
-        }
+        _current = value;
+        send_to_device();
     }
 
-    int32_t getValue() __attribute__((always_inline))
+    uint16_t getValue() __attribute__((always_inline))
     {
         return _current;
     }

@@ -2,7 +2,7 @@
 #define __LM35_H__
 
 
-#define LM35_SAMPLES 16
+#define LM35_SAMPLES 64
 
 
 class LM35
