@@ -94,9 +94,6 @@ Setter current_set_point;
 // Global Data
 struct {
 
-    // encoder value
-    ClickEncoder::Button encoder_btn;
-
     // DAC
     int32_t dac_set_point;
 
@@ -128,12 +125,6 @@ void UpdateButtons()
 }
 
 
-void UpdateEncoder()
-{
-    g_cb.encoder_btn = encoder.getButton();
-}
-
-
 void UpdateCurrentVoltage()
 {
     // update current data, no need for idle
@@ -156,7 +147,6 @@ void UpdateSensors()
 {
     // update inputs
     UpdateButtons();
-    UpdateEncoder();
 
     // sensors
     UpdateCurrentVoltage();
@@ -246,14 +236,14 @@ void ProcessControl()
         fan.turn_off();
     }
 
-    if (buttons[1].isActive()) {
+    if (buttons[1].isRaisingEdge()) {
         current_set_point.move_left();
-    } else if (buttons[2].isActive()) {
+    } else if (buttons[2].isRaisingEdge()) {
         current_set_point.move_right();
     }
     current_set_point.increase(encoder.getValue());
 
-    if (buttons[3].isActive()) {
+    if (buttons[3].isRaisingEdge()) {
         g_cb.page = (g_cb.page + 1) % 2;
     }
 
@@ -262,7 +252,7 @@ void ProcessControl()
     double p_term = e * 1000; // _kP
     double pid_sum = p_term;
 
-    if (buttons[0].isActive()) {
+    if (buttons[0].isRaisingEdge()) {
         lcd.clear();
         lcd.home();
         lcd.print(current_set_point.as_double());
@@ -278,8 +268,9 @@ void ProcessControl()
     g_cb.dac_set_point = set_point;
 
     // State change event
+    ClickEncoder::Button encoder_btn = encoder.getButton();
     if (g_cb.state == STATE_IDLE &&
-        g_cb.encoder_btn == ClickEncoder::Held &&
+        encoder_btn == ClickEncoder::Held &&
         g_cb.state_time + 3000.0 < now)
     {
         // IDLE -> RUNNING
@@ -289,7 +280,7 @@ void ProcessControl()
     }
     else if (g_cb.state == STATE_RUNNING)
     {
-        if (g_cb.encoder_btn == ClickEncoder::Clicked)
+        if (encoder_btn == ClickEncoder::Clicked)
         {
             g_cb.state = STATE_IDLE;
             ad5541.setValue(0);
