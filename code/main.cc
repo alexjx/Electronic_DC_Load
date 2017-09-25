@@ -218,8 +218,11 @@ void UpdateDisplay()
         DisplayFixedDouble(adc.readVoltage(), 6, 3);
         lcd.print("V ");
     } else if (g_cb.page == 1) {
+        double wattage = adc.readVoltage() * adc.readCurrent();
+        DisplayFixedDouble(wattage, 8, 4);
+        lcd.print("W ");
         lcd.print(ad5541.getValue(), HEX);
-        lcd.print("              ");
+        lcd.print("     ");
     }
 
     uint8_t bit = 5 - current_set_point.current_bit();
