@@ -10,6 +10,8 @@
 #include "button.h"
 #include "fan.h"
 #include "setter.h"
+#include "lm35.h"
+
 
 // Hardware Configuration
 #define LCD_IIC_ADDRESS      0x20
@@ -41,6 +43,10 @@
 // Constants
 const double VREF_VOLTAGE = 5000.0;  // mV
 
+
+///////////////////////
+// Devices
+///////////////////////
 
 // DAC
 AD5541 ad5541(DAC_CS_PIN);
@@ -77,6 +83,18 @@ Button buttons[MAX_BUTTON] {
 FanController fan(FAN_SW_PIN);
 
 
+// temperature sensor
+LM35 lm35(LM35_PIN, VREF_VOLTAGE);
+
+
+// Setter
+Setter current_set_point;
+
+
+//////////////////////////////
+// Operations
+//////////////////////////////
+
 enum OPTERATION_STATE
 {
     STATE_IDLE = 1,
@@ -87,18 +105,8 @@ enum OPTERATION_STATE
 };
 
 
-// Setter
-Setter current_set_point;
-
-
 // Global Data
 struct {
-
-    // DAC
-    int32_t dac_set_point;
-
-    // temperature
-    double temperature;
 
     // status
     OPTERATION_STATE state;
@@ -107,7 +115,7 @@ struct {
     // page
     int page;
 
-} g_cb = {0};
+} g_cb { STATE_IDLE, 0, 0 };
 
 
 // timer service
@@ -138,8 +146,7 @@ void UpdateCurrentVoltage()
 
 void UpdateTemperature()
 {
-    int reg = analogRead(LM35_PIN);
-    g_cb.temperature = (double)reg * VREF_VOLTAGE / 1024.0 / 10.0;
+    lm35.update();
 }
 
 
@@ -185,7 +192,7 @@ void UpdateDisplay()
     lcd.setCursor(0, 0);
     DisplayFixedDouble(current_set_point.as_double(), 6, 3);
     lcd.print("A ");
-    DisplayFixedDouble(g_cb.temperature, 5, 2);
+    DisplayFixedDouble(lm35.getTemperature(), 5, 2);
     lcd.print("C ");
     // FIXME: print out status
     switch (g_cb.state) {
@@ -230,9 +237,9 @@ void ProcessControl()
     uint32_t now = millis();
 
     // temperature control
-    if (g_cb.temperature > 40.0 && !fan.isOn()) {
+    if (lm35.getTemperature() > 40.0 && !fan.isOn()) {
         fan.turn_on();
-    } else if (g_cb.temperature < 35.0 && fan.isOn()) {
+    } else if (lm35.getTemperature() < 35.0 && fan.isOn()) {
         fan.turn_off();
     }
 
@@ -248,9 +255,12 @@ void ProcessControl()
     }
 
     // FIXME: change this to PID
+    static uint32_t last;
     double e = current_set_point.as_double() - adc.readCurrent();
     double p_term = e * 1000; // _kP
-    double pid_sum = p_term;
+    double i_term = e * (now - last) * 10;
+    double d_term = e / (now - last) * 20;
+    double pid_sum = p_term + i_term + d_term;
 
     if (buttons[0].isRaisingEdge()) {
         lcd.clear();
@@ -265,7 +275,6 @@ void ProcessControl()
 
     int32_t set_point = ad5541.getValue();
     set_point += (int32_t)pid_sum;
-    g_cb.dac_set_point = set_point;
 
     // State change event
     ClickEncoder::Button encoder_btn = encoder.getButton();
@@ -290,8 +299,6 @@ void ProcessControl()
             ad5541.setValue(set_point);
         }
     }
-
-    g_cb.dac_set_point = set_point;
 }
 
 
@@ -314,8 +321,8 @@ void setup()
     Timer1.initialize(1000);
     Timer1.attachInterrupt(timer_one_isr);
 
-    // VREF
-    analogReference(EXTERNAL);
+    // temperature
+    lm35.init();
 
     // ADC
     adc.begin();
@@ -340,10 +347,10 @@ void setup()
 
     // DAC
     ad5541.begin();
-    ad5541.setValue(g_cb.dac_set_point);
+    ad5541.setValue(0);
 
     // get lcd ready for using information
-    delay(3000);
+    delay(2000);
     lcd.clear();
 }
 
