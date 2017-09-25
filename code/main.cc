@@ -107,6 +107,9 @@ struct {
     OPTERATION_STATE state;
     uint32_t state_time;
 
+    // page
+    int page;
+
 } g_cb = {0};
 
 
@@ -208,10 +211,16 @@ void UpdateDisplay()
     // Line 2 - Current Sensing, Voltage Sensing:
     //   ss.ssssA vvv.vvvV
     lcd.setCursor(0, 1);
-    DisplayFixedDouble(adc.readCurrent(), 6, 3);
-    lcd.print("A ");
-    DisplayFixedDouble(adc.readVoltage(), 6, 3);
-    lcd.print("V ");
+
+    if (g_cb.page == 0) {
+        DisplayFixedDouble(adc.readCurrent(), 6, 3);
+        lcd.print("A ");
+        DisplayFixedDouble(adc.readVoltage(), 6, 3);
+        lcd.print("V ");
+    } else if (g_cb.page == 1) {
+        lcd.print(ad5541.getValue(), HEX);
+        lcd.print("              ");
+    }
 
     uint8_t bit = 5 - current_set_point.current_bit();
     if (bit < 3) {
@@ -241,8 +250,29 @@ void ProcessControl()
     }
     current_set_point.increase(encoder.getValue());
 
+    if (buttons[3].isActive()) {
+        g_cb.page = (g_cb.page + 1) % 2;
+    }
+
     // FIXME: change this to PID
-    uint16_t set_point = 0;
+    double e = current_set_point.as_double() - adc.readCurrent();
+    double p_term = e * 1000; // _kP
+    double pid_sum = p_term;
+
+    if (buttons[0].isActive()) {
+        lcd.clear();
+        lcd.home();
+        lcd.print(current_set_point.as_double());
+        lcd.print(" ");
+        lcd.print(adc.readCurrent());
+        lcd.print(" ");
+        lcd.print(pid_sum);
+        delay(10000);
+    }
+
+    int32_t set_point = ad5541.getValue();
+    set_point += (int32_t)pid_sum;
+    g_cb.dac_set_point = set_point;
 
     // State change event
     if (g_cb.state == STATE_IDLE &&
@@ -261,7 +291,7 @@ void ProcessControl()
             g_cb.state = STATE_IDLE;
             ad5541.setValue(0);
         }
-        else if (g_cb.dac_set_point != set_point)
+        else if (ad5541.getValue() != set_point)
         {
             ad5541.setValue(set_point);
         }

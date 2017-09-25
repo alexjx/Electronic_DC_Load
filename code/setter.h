@@ -56,7 +56,7 @@ public:
 
     double as_double()
     {
-        return static_cast<double>(_value) / (1000.0);
+        return static_cast<double>(_value) / 1000.0;
     }
 
     uint8_t current_bit()

@@ -9,11 +9,10 @@
 
 class AD5541 {
 protected:
-    uint16_t _current;
+    int32_t _current;
     uint16_t _fast_mode;
     int _fs_pin;
     int _cs_pin;
-    int _last;
 
     void send_to_device() {
         // Send CS signal
@@ -21,24 +20,26 @@ protected:
         delayMicroseconds(1);  // datsheet only need 10ns
         SPISettings setting(AD5541_SPI_SPEED, MSBFIRST, SPI_MODE0);
         SPI.beginTransaction(setting);
-        SPI.transfer16(_current);
+        SPI.transfer16((uint16_t)_current);
         SPI.endTransaction();
         digitalWrite(_cs_pin, HIGH);
     }
 
 public:
-    AD5541(int cs_pin) {
+    AD5541(int cs_pin)
+    {
     	_cs_pin = cs_pin;
-        _last = 0;
-        _current = -1;
+        _current = 0;
     }
 
-    void begin() {
+    void begin()
+    {
         pinMode(_cs_pin, OUTPUT);
         digitalWrite(_cs_pin, HIGH);
     }
 
-    void setValue(uint16_t value) {
+    void setValue(int32_t value)
+    {
         value = constrain(value, AD5541_CODE_LOW, AD5541_CODE_HIGH);
         if (value != _current) {
             _current = value;
@@ -46,7 +47,8 @@ public:
         }
     }
 
-    uint16_t getValue() {
+    int32_t getValue() __attribute__((always_inline))
+    {
         return _current;
     }
 

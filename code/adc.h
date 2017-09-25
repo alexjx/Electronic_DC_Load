@@ -6,7 +6,7 @@
 //
 const double GAIN_8_HIGH = 600.0;
 const double GAIN_1_LOW = 550.0;
-const int DIGITAL_FILTER_WORDS = 48;
+const int DIGITAL_FILTER_WORDS = 96;
 
 
 // Calibrate Data for different gains
