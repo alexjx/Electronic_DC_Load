@@ -87,8 +87,8 @@ FanController fan(FAN_SW_PIN);
 LM35 lm35(LM35_PIN, VREF_VOLTAGE);
 
 
-// Setter
-Setter current_set_point;
+// Setter (max 15000mA)
+Setter<15000> current_set_point;
 
 
 //////////////////////////////
@@ -257,10 +257,11 @@ void ProcessControl()
     // FIXME: change this to PID
     static uint32_t last;
     double e = current_set_point.as_double() - adc.readCurrent();
-    double p_term = e * 1000; // _kP
-    double i_term = e * (now - last) * 10;
-    double d_term = e / (now - last) * 20;
-    double pid_sum = p_term + i_term + d_term;
+    double p_term = e * 333; // _kP
+    // double i_term = e * (now - last) * 10;
+    // double d_term = e / (now - last) * 20;
+    // double pid_sum = p_term + i_term + d_term;
+    double pid_sum = p_term * 10.0;
 
     if (buttons[0].isRaisingEdge()) {
         lcd.clear();
@@ -270,11 +271,12 @@ void ProcessControl()
         lcd.print(adc.readCurrent());
         lcd.print(" ");
         lcd.print(pid_sum);
+        lcd.setCursor(0, 1);
         delay(10000);
     }
 
-    int32_t set_point = ad5541.getValue();
-    set_point += (int32_t)pid_sum;
+    uint16_t set_point = ad5541.getValue();
+    set_point += (int16_t)pid_sum;
 
     // State change event
     ClickEncoder::Button encoder_btn = encoder.getButton();
@@ -334,7 +336,7 @@ void setup()
     adc.init();
     // FIXME: Calibration data should be gotten from EEPROM
     adc.setCalibData(AD7190_CONF_GAIN_1, 0.99955, 2.5);
-    adc.setCalibData(AD7190_CONF_GAIN_8, 0.99880, 0);
+    adc.setCalibData(AD7190_CONF_GAIN_8, 0.99950, -0.5);
 
     // Buttons
     buttons[0].init();

@@ -31,7 +31,7 @@ public:
     void init()
     {
         analogReference(EXTERNAL);
-        for (int i = LM35_SAMPLES - 1; i > 0; i--)
+        for (int i = LM35_SAMPLES; i > 0; i--)
         {
             _update();
         }
@@ -40,14 +40,14 @@ public:
     void update()
     {
         _update();
-        calcTemperature();
+        _temperature = calcTemperature();
     }
 
     double calcTemperature()
     {
         double r = 0.0;
-        for (int i = LM35_SAMPLES - 1; i > 0; i--) {
-            r += _samples[i];
+        for (int i = LM35_SAMPLES; i > 0; i--) {
+            r += (double)_samples[i - 1];
         }
         return r * _vref / 1024 / 10.0 / LM35_SAMPLES;
     }

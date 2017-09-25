@@ -11,10 +11,10 @@ const int32_t INCREASE_BY[] = {
 };
 
 const int MAX_DIGITS = sizeof(INCREASE_BY) / sizeof(INCREASE_BY[0]);
-const int32_t MAX_VALUE = 20000;
 const int32_t MIN_VALUE = 0;
 
 
+template <int32_t _MAX_>
 class Setter
 {
 private:
@@ -31,14 +31,14 @@ public:
     {
         _value = constrain(_value + INCREASE_BY[_index] * v,
                            MIN_VALUE,
-                           MAX_VALUE);
+                           _MAX_);
     }
 
     void decrease(int16_t v)
     {
         _value = constrain(_value - INCREASE_BY[_index] * v,
                            MIN_VALUE,
-                           MAX_VALUE);
+                           _MAX_);
     }
 
     void move_left()
