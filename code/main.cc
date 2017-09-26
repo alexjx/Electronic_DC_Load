@@ -275,9 +275,10 @@ void ProcessControl()
         e = 0.0; // dead band
     }
     double p_term = e * 300; // _kP
-    double i_term = e * (now - last) / 7.83;
-    double d_term = e / (now - last) * 1013;
-    double pid_sum = p_term + i_term + d_term;
+    // double i_term = e * (now - last) / 100000;
+    // double d_term = e / (now - last) * 0;
+    // double pid_sum = p_term + i_term + d_term;
+    double pid_sum = p_term;
     pid_sum *= 10.0;
     last = now;
 
