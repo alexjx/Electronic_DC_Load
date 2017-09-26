@@ -261,11 +261,11 @@ void ProcessControl()
         e = 0.0; // dead band
     }
     double p_term = e * 300; // _kP
-    // double i_term = e * (now - last) * 10;
-    // double d_term = e / (now - last) * 20;
-    // double pid_sum = p_term + i_term + d_term;
+    double i_term = e * (now - last) * 0.1;
+    double d_term = e / (now - last) * 10;
+    double pid_sum = p_term + i_term + d_term;
+    pid_sum *= 10.0;
     last = now;
-    double pid_sum = p_term * 10.0;
 
     if (buttons[0].isRaisingEdge()) {
         lcd.clear();
