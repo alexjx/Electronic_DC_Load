@@ -22,7 +22,6 @@ protected:
         SPISettings setting(AD5541_SPI_SPEED, MSBFIRST, SPI_MODE0);
         SPI.beginTransaction(setting);
         SPI.transfer16(_current);
-        delayMicroseconds(1);  // datsheet only need 10ns
         digitalWrite(_cs_pin, HIGH);
         SPI.endTransaction();
     }

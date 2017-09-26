@@ -275,14 +275,18 @@ void ProcessControl()
         e = 0.0; // dead band
     }
     double p_term = e * 300; // _kP
-    // double i_term = e * (now - last) / 100000;
-    // double d_term = e / (now - last) * 0;
+    // double i_term = e * (now - last) / 66;
+    // double d_term = e / (now - last) * 1171;
     // double pid_sum = p_term + i_term + d_term;
     double pid_sum = p_term;
     pid_sum *= 10.0;
     last = now;
 
-    if (buttons[0].isRaisingEdge()) {
+    int32_t set_point = ad5541.getValue();
+    set_point += (int32_t)pid_sum;
+    set_point = constrain(set_point, AD5541_CODE_LOW, AD5541_CODE_HIGH);
+
+    if (buttons[0].isActive()) {
         lcd.clear();
         lcd.home();
         lcd.print(current_set_point.as_double());
@@ -291,14 +295,11 @@ void ProcessControl()
         lcd.print(" ");
         lcd.print(pid_sum);
         lcd.setCursor(0, 1);
-        lcd.print(g_cb.max);
-        g_cb.max = 0.0;
-        delay(2000);
+        lcd.print(set_point, HEX);
+        lcd.print(" ");
+        lcd.print(ad5541.getValue(), HEX);
+        delay(1000);
     }
-
-    int32_t set_point = ad5541.getValue();
-    set_point += (int32_t)pid_sum;
-    set_point = constrain(set_point, AD5541_CODE_LOW, AD5541_CODE_HIGH);
 
     // State change event
     ClickEncoder::Button encoder_btn = encoder.getButton();
@@ -309,7 +310,7 @@ void ProcessControl()
         // IDLE -> RUNNING
         g_cb.state = STATE_RUNNING;
         g_cb.state_time = now;
-        ad5541.setValue(set_point);
+        ad5541.setValue((uint16_t)set_point);
     }
     else if (g_cb.state == STATE_RUNNING)
     {
@@ -318,9 +319,9 @@ void ProcessControl()
             g_cb.state = STATE_IDLE;
             ad5541.setValue(0);
         }
-        else if (ad5541.getValue() != set_point)
+        else if ((uint32_t)ad5541.getValue() != set_point)
         {
-            ad5541.setValue(set_point);
+            ad5541.setValue((uint16_t)set_point);
         }
     }
 }
