@@ -347,8 +347,8 @@ void setup()
     delay(10);
     adc.init();
     // FIXME: Calibration data should be gotten from EEPROM
-    adc.setCalibData(AD7190_CONF_GAIN_1, 0.99955, 2.5);
-    adc.setCalibData(AD7190_CONF_GAIN_8, 0.99810, -0.30);
+    adc.setCalibData(AD7190_CONF_GAIN_1, 1.00080, 4.0);
+    adc.setCalibData(AD7190_CONF_GAIN_8, 1.00243, -0.60);
 
     // Buttons
     buttons[0].init();
