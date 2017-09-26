@@ -236,6 +236,13 @@ void ProcessControl()
 {
     uint32_t now = millis();
 
+    // if current exceeded max, abort
+    if (adc.readCurrent() > 16.000) {
+        g_cb.state = STATE_IDLE;
+        ad5541.setValue(0);
+        return;
+    }
+
     // temperature control
     if (lm35.getTemperature() > 40.0 && !fan.isOn()) {
         fan.turn_on();
