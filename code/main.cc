@@ -112,10 +112,12 @@ struct {
     OPTERATION_STATE state;
     uint32_t state_time;
 
+    double max;
+
     // page
     int page;
 
-} g_cb { STATE_IDLE, 0, 0 };
+} g_cb { STATE_IDLE, 0, 0.0, 0 };
 
 
 // timer service
@@ -138,6 +140,8 @@ void UpdateCurrentVoltage()
     // update current data, no need for idle
     if (g_cb.state != STATE_IDLE) {
         adc.updateCurrent();
+    } else {
+        adc.resetCurrent();
     }
     // update voltage
     adc.updateVoltage();
@@ -243,6 +247,9 @@ void ProcessControl()
         return;
     }
 
+    if (adc.readCurrent() > g_cb.max)
+        g_cb.max = adc.readCurrent();
+
     // temperature control
     if (lm35.getTemperature() > 40.0 && !fan.isOn()) {
         fan.turn_on();
@@ -264,12 +271,12 @@ void ProcessControl()
     // FIXME: change this to PID
     static uint32_t last;
     double e = current_set_point.as_double() - adc.readCurrent();
-    if (e > -0.0007 && e < 0.0007) {
+    if (e > -0.0005 && e < 0.0005) {
         e = 0.0; // dead band
     }
     double p_term = e * 300; // _kP
-    double i_term = e * (now - last) * 0.1;
-    double d_term = e / (now - last) * 10;
+    double i_term = e * (now - last) / 7.83;
+    double d_term = e / (now - last) * 1013;
     double pid_sum = p_term + i_term + d_term;
     pid_sum *= 10.0;
     last = now;
@@ -283,7 +290,8 @@ void ProcessControl()
         lcd.print(" ");
         lcd.print(pid_sum);
         lcd.setCursor(0, 1);
-        lcd.print(ad5541.getValue(), HEX);
+        lcd.print(g_cb.max);
+        g_cb.max = 0.0;
         delay(2000);
     }
 
