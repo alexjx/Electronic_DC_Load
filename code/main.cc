@@ -271,21 +271,29 @@ void ProcessControl()
     // FIXME: change this to PID
     static uint32_t last;
     static double last_e;
-    double e = current_set_point.as_double() - adc.readCurrent();
-    if (e > -0.0005 && e < 0.0005) {
-        e = 0.0; // dead band
+    static double e_sum;
+    double pid_sum = 0.0;
+    if (now - last > 10) {
+        double e = current_set_point.as_double() - adc.readCurrent();
+        if (e > -0.0005 && e < 0.0005) {
+            e = 0.0; // dead band
+        }
+        double p_term = e * 2600.0; // _kP
+        e_sum += e * (now - last);
+        e_sum = constrain(e_sum, -0.2/0.03, 0.2/0.03);
+        double i_term = e_sum * 0.03;
+        double d_term = (e - last_e) / (now - last) * 600.0;
+        double pid_sum = p_term + i_term - d_term;
+        // double pid_sum = p_term;
+        // pid_sum *= 3.5;
+        last = now;
+        last_e = e;
     }
-    double p_term = e * 1600.0; // _kP
-    double i_term = e * (now - last) / 1.0 * 0.0;
-    double d_term = (e - last_e) / (now - last) * 13.0;
-    double pid_sum = p_term + i_term + d_term;
-    // double pid_sum = p_term;
-    // pid_sum *= 3.5;
-    last = now;
-    last_e = e;
+
 
     int32_t set_point = (int32_t)ad5541.getValue();
     set_point += (int32_t)pid_sum;
+    // int32_t set_point = (int32_t)pid_sum;
     set_point = constrain(set_point, AD5541_CODE_LOW, AD5541_CODE_HIGH);
 
     if (buttons[0].isActive()) {
@@ -343,7 +351,7 @@ void setup()
     lcd.home();
     lcd.print("@DC Active Load@");
     lcd.setCursor(0, 1);
-    lcd.print("       20170926");
+    lcd.print("       20170927");
     lcd.home();
 
     // SPI
