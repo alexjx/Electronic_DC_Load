@@ -226,18 +226,7 @@ void UpdateDisplay()
     } else if (g_cb.page == 1) {
         double wattage = adc.readVoltage() * adc.readCurrent();
         DisplayFixedDouble(wattage, 8, 4);
-        lcd.print("W ");
-        lcd.print(ad5541.getValue(), HEX);
-        lcd.print("     ");
-    } else if (g_cb.page == 2) {
-        lcd.setCursor(0, 0);
-        lcd.print(p_term);
-        lcd.print(" ");
-        lcd.print(i_term);
-        lcd.print("       ");
-        lcd.setCursor(0, 1);
-        lcd.print(d_term);
-        lcd.print("       ");
+        lcd.print("W                   ");
     }
 
     uint8_t bit = 5 - current_set_point.current_bit();
@@ -279,7 +268,7 @@ void ProcessControl()
     current_set_point.increase(encoder.getValue());
 
     if (buttons[3].isRaisingEdge()) {
-        g_cb.page = (g_cb.page + 1) % 3;
+        g_cb.page = (g_cb.page + 1) % 2;
     }
 
     // FIXME: change this to PID
