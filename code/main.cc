@@ -293,10 +293,10 @@ void ProcessControl()
     d_term = 0.0;
     if (now - last >= 10) {
         e = current_set_point.as_double() - adc.readCurrent();
-        if (e > -0.0005 && e < 0.0005) {
+        if (e > -0.001 && e < 0.001) {
             e = 0.0; // dead band
         }
-        p_term = e * 1989.0; // _kP
+        p_term = e * 2289.0; // _kP
         e_sum += 0.00066 * e * (now - last);
         e_sum = constrain(e_sum, -15, 15);
         i_term = e_sum;
