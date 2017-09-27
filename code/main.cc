@@ -121,6 +121,9 @@ struct {
 
 } g_cb { STATE_IDLE, 0, 0.0, 0 };
 
+double p_term = 0.0, i_term = 0.0, d_term = 0.0;
+
+
 
 // timer service
 void timer_one_isr()
@@ -226,6 +229,15 @@ void UpdateDisplay()
         lcd.print("W ");
         lcd.print(ad5541.getValue(), HEX);
         lcd.print("     ");
+    } else if (g_cb.page == 2) {
+        lcd.setCursor(0, 0);
+        lcd.print(p_term);
+        lcd.print(" ");
+        lcd.print(i_term);
+        lcd.print("       ");
+        lcd.setCursor(0, 1);
+        lcd.print(d_term);
+        lcd.print("       ");
     }
 
     uint8_t bit = 5 - current_set_point.current_bit();
@@ -267,31 +279,33 @@ void ProcessControl()
     current_set_point.increase(encoder.getValue());
 
     if (buttons[3].isRaisingEdge()) {
-        g_cb.page = (g_cb.page + 1) % 2;
+        g_cb.page = (g_cb.page + 1) % 3;
     }
 
     // FIXME: change this to PID
     static uint32_t last;
-    static double last_e;
+    static double last_input;
     static double e_sum;
     double pid_sum = 0.0;
     double e = 0.0;
-    double p_term = 0.0, i_term = 0.0, d_term = 0.0;
+    p_term = 0.0;
+    i_term = 0.0;
+    d_term = 0.0;
     if (now - last >= 10) {
         e = current_set_point.as_double() - adc.readCurrent();
-        if (e > -0.0001 && e < 0.0001) {
+        if (e > -0.0005 && e < 0.0005) {
             e = 0.0; // dead band
         }
-        p_term = e * 3250.0; // _kP
-        e_sum += 0.00049 * e * (now - last);
+        p_term = e * 1989.0; // _kP
+        e_sum += 0.00066 * e * (now - last);
         e_sum = constrain(e_sum, -15, 15);
         i_term = e_sum;
-        d_term = (e - last_e) / (now - last) * 4100.0;
-        pid_sum = p_term + i_term + d_term;
+        d_term = (adc.readCurrent() - last_input) / (now - last) * 366.0;
+        pid_sum = p_term + i_term - d_term;
         // double pid_sum = p_term;
         // pid_sum *= 3.5;
         last = now;
-        last_e = e;
+        last_input = adc.readCurrent();
     }
 
 
@@ -330,7 +344,7 @@ void ProcessControl()
         g_cb.state_time = now;
         ad5541.setValue(0);
         e_sum = 0.0;
-        last_e = 0.0;
+        last_input = 0.0;
     }
     else if (g_cb.state == STATE_RUNNING)
     {
