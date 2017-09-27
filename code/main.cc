@@ -272,27 +272,26 @@ void ProcessControl()
 
     // FIXME: change this to PID
     static uint32_t last;
-    static double last_input;
+    static double last_e;
     static double e_sum;
     double pid_sum = 0.0;
     double e = 0.0;
     double p_term = 0.0, i_term = 0.0, d_term = 0.0;
     if (now - last >= 10) {
         e = current_set_point.as_double() - adc.readCurrent();
-        if (e > -0.0005 && e < 0.0005) {
+        if (e > -0.0001 && e < 0.0001) {
             e = 0.0; // dead band
         }
-        p_term = e * 133.0; // _kP
-        e_sum += 0.03 * e * (now - last);
-        // e_sum = constrain(e_sum, -0.2/0.03, 0.2/0.03);
-        e_sum = constrain(e_sum, AD5541_CODE_LOW, AD5541_CODE_HIGH);
+        p_term = e * 3250.0; // _kP
+        e_sum += 0.00049 * e * (now - last);
+        e_sum = constrain(e_sum, -15, 15);
         i_term = e_sum;
-        d_term = (adc.readCurrent() - last_input) / (now - last) * 60.0;
-        pid_sum = p_term + i_term - d_term;
+        d_term = (e - last_e) / (now - last) * 4100.0;
+        pid_sum = p_term + i_term + d_term;
         // double pid_sum = p_term;
         // pid_sum *= 3.5;
         last = now;
-        last_input = adc.readCurrent();
+        last_e = e;
     }
 
 
@@ -331,7 +330,7 @@ void ProcessControl()
         g_cb.state_time = now;
         ad5541.setValue(0);
         e_sum = 0.0;
-        last_input = 0.0;
+        last_e = 0.0;
     }
     else if (g_cb.state == STATE_RUNNING)
     {
