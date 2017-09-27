@@ -51,6 +51,7 @@ const double VREF_VOLTAGE = 5000.0;  // mV
 // DAC
 AD5541 ad5541(DAC_CS_PIN);
 
+
 // ADC
 ADConverter adc(ADC_CS_PIN,
                 ADC_VOLTAGE_CHN,
@@ -62,6 +63,7 @@ ADConverter adc(ADC_CS_PIN,
 LiquidCrystal_I2C lcd(LCD_IIC_ADDRESS,
                       LCD_IIC_COLS,
                       LCD_IIC_ROWS);
+
 
 // encoder
 ClickEncoder encoder(ENCODER_PIN_1,
@@ -270,24 +272,27 @@ void ProcessControl()
 
     // FIXME: change this to PID
     static uint32_t last;
-    static double last_e;
+    static double last_input;
     static double e_sum;
     double pid_sum = 0.0;
-    if (now - last > 10) {
-        double e = current_set_point.as_double() - adc.readCurrent();
+    double e = 0.0;
+    double p_term = 0.0, i_term = 0.0, d_term = 0.0;
+    if (now - last >= 10) {
+        e = current_set_point.as_double() - adc.readCurrent();
         if (e > -0.0005 && e < 0.0005) {
             e = 0.0; // dead band
         }
-        double p_term = e * 2600.0; // _kP
-        e_sum += e * (now - last);
-        e_sum = constrain(e_sum, -0.2/0.03, 0.2/0.03);
-        double i_term = e_sum * 0.03;
-        double d_term = (e - last_e) / (now - last) * 600.0;
-        double pid_sum = p_term + i_term - d_term;
+        p_term = e * 133.0; // _kP
+        e_sum += 0.03 * e * (now - last);
+        // e_sum = constrain(e_sum, -0.2/0.03, 0.2/0.03);
+        e_sum = constrain(e_sum, AD5541_CODE_LOW, AD5541_CODE_HIGH);
+        i_term = e_sum;
+        d_term = (adc.readCurrent() - last_input) / (now - last) * 60.0;
+        pid_sum = p_term + i_term - d_term;
         // double pid_sum = p_term;
         // pid_sum *= 3.5;
         last = now;
-        last_e = e;
+        last_input = adc.readCurrent();
     }
 
 
@@ -295,6 +300,7 @@ void ProcessControl()
     set_point += (int32_t)pid_sum;
     // int32_t set_point = (int32_t)pid_sum;
     set_point = constrain(set_point, AD5541_CODE_LOW, AD5541_CODE_HIGH);
+
 
     if (buttons[0].isActive()) {
         lcd.clear();
@@ -324,7 +330,8 @@ void ProcessControl()
         g_cb.state = STATE_RUNNING;
         g_cb.state_time = now;
         ad5541.setValue(0);
-        last_e = 0.0;
+        e_sum = 0.0;
+        last_input = 0.0;
     }
     else if (g_cb.state == STATE_RUNNING)
     {
