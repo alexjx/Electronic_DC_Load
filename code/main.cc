@@ -90,7 +90,14 @@ LM35 lm35(LM35_PIN, VREF_VOLTAGE);
 
 
 // Setter (max 15000mA)
-Setter<15000> current_set_point;
+Setter<15000l> current_set_point;
+// Cut off voltage set
+Setter<99999l> voltage_set_point;
+
+char buffer[200];
+// 0 - 4 current 5 - 9 cut off voltage
+int8_t setter_position = 4;
+const int MAX_SET_POSITION = 10;
 
 
 //////////////////////////////
@@ -201,15 +208,17 @@ void UpdateDisplay()
     lcd.setCursor(0, 0);
     DisplayFixedDouble(current_set_point.as_double(), 6, 3);
     lcd.print("A ");
-    DisplayFixedDouble(lm35.getTemperature(), 5, 2);
-    lcd.print("C ");
+    DisplayFixedDouble(voltage_set_point.as_double(), 6, 3);
+    lcd.print("V");
+
     // FIXME: print out status
     switch (g_cb.state) {
         case STATE_IDLE:
             lcd.print(" ");
             break;
         case STATE_RUNNING:
-            lcd.print("R");
+            lcd.print("*");
+            break;
         default:
             lcd.print("?");
     }
@@ -226,12 +235,22 @@ void UpdateDisplay()
     } else if (g_cb.page == 1) {
         double wattage = adc.readVoltage() * adc.readCurrent();
         DisplayFixedDouble(wattage, 8, 4);
-        lcd.print("W                   ");
+        lcd.print("W ");
+        DisplayFixedDouble(lm35.getTemperature(), 5, 2);
+        lcd.print("C            ");
     }
 
-    uint8_t bit = 5 - current_set_point.current_bit();
-    if (bit < 3) {
-        bit -= 1;
+    // positiont the cursor for showing
+    // current 01.345A 89.123V
+    uint8_t bit = setter_position;
+    if (setter_position >= 2) {
+        bit++;
+    }
+    if (setter_position > 4) {
+        bit += 2;
+    }
+    if (setter_position >= 7) {
+        bit++;
     }
     lcd.setCursor(bit, 0);
     lcd.cursor();
@@ -239,19 +258,24 @@ void UpdateDisplay()
 }
 
 
+void StopDischarge()
+{
+    g_cb.state = STATE_IDLE;
+    ad5541.setValue(0);
+}
+
+
 void ProcessControl()
 {
     uint32_t now = millis();
 
-    // if current exceeded max, abort
-    if (adc.readCurrent() > 16.000) {
-        g_cb.state = STATE_IDLE;
-        ad5541.setValue(0);
-        return;
+    // abort contitions
+    if (adc.readCurrent() > 16.000 ||
+        adc.readVoltage() < voltage_set_point.as_double() ||
+        lm35.getTemperature() > 110.0)
+    {
+        StopDischarge();
     }
-
-    if (adc.readCurrent() > g_cb.max)
-        g_cb.max = adc.readCurrent();
 
     // temperature control
     if (lm35.getTemperature() > 40.0 && !fan.isOn()) {
@@ -260,18 +284,30 @@ void ProcessControl()
         fan.turn_off();
     }
 
+    // configuration setter control
     if (buttons[1].isRaisingEdge()) {
-        current_set_point.move_left();
+        setter_position = (setter_position - 1) % MAX_SET_POSITION;
+        if (setter_position < 0) {
+            setter_position += MAX_SET_POSITION;
+        }
     } else if (buttons[2].isRaisingEdge()) {
-        current_set_point.move_right();
+        setter_position = (setter_position + 1) % MAX_SET_POSITION;
     }
-    current_set_point.increase(encoder.getValue());
+    // find which to set
+    if (setter_position < 5) {
+        current_set_point.set_position(setter_position);
+        current_set_point.change(encoder.getValue());
+    } else {
+        voltage_set_point.set_position(setter_position - 5);
+        voltage_set_point.change(encoder.getValue());
+    }
 
+    // display control
     if (buttons[3].isRaisingEdge()) {
         g_cb.page = (g_cb.page + 1) % 2;
     }
 
-    // FIXME: change this to PID
+    // FIXME: We should not run PID if not running
     static uint32_t last;
     static double last_input;
     static double e_sum;
@@ -297,29 +333,28 @@ void ProcessControl()
         last_input = adc.readCurrent();
     }
 
-
     int32_t set_point = (int32_t)ad5541.getValue();
     set_point += (int32_t)pid_sum;
-    // int32_t set_point = (int32_t)pid_sum;
     set_point = constrain(set_point, AD5541_CODE_LOW, AD5541_CODE_HIGH);
 
 
     if (buttons[0].isActive()) {
         lcd.clear();
         lcd.home();
-        lcd.print(e);
-        lcd.print(" ");
-        lcd.print(pid_sum);
-        lcd.print(" ");
-        lcd.print(set_point, HEX);
-        lcd.print(ad5541.getValue(), HEX);
-        lcd.setCursor(0, 1);
-        lcd.print(p_term);
-        lcd.print(" ");
-        lcd.print(i_term);
-        lcd.print(" ");
-        lcd.print(d_term);
-        delay(1000);
+        // lcd.print(e);
+        // lcd.print(" ");
+        // lcd.print(pid_sum);
+        // lcd.print(" ");
+        // lcd.print(set_point, HEX);
+        // lcd.print(ad5541.getValue(), HEX);
+        // lcd.setCursor(0, 1);
+        // lcd.print(p_term);
+        // lcd.print(" ");
+        // lcd.print(i_term);
+        // lcd.print(" ");
+        // lcd.print(d_term);
+        lcd.print(setter_position);
+        delay(800);
     }
 
     // State change event
@@ -363,19 +398,29 @@ void setup()
     lcd.print("       20170927");
     lcd.home();
 
+    //
+    delay(400);
+
+    lcd.clear();
+    lcd.print(1);
+
     // SPI
     SPI.begin();
+    lcd.print(2);
 
     // DAC
     ad5541.begin();
     ad5541.setValue(0);
+    lcd.print(3);
 
     // Timer
     Timer1.initialize(1000);
     Timer1.attachInterrupt(timer_one_isr);
+    lcd.print(4);
 
     // temperature
     lm35.init();
+    lcd.print(5);
 
     // ADC
     adc.begin();
@@ -384,23 +429,30 @@ void setup()
         lcd.print("ADC ERROR");
         delay(300);
     }
+    lcd.print("z");
     delay(10);
     adc.init();
+    delay(10);
+    lcd.print("a");
     // FIXME: Calibration data should be gotten from EEPROM
     adc.setCalibData(AD7190_CONF_GAIN_1, 1.00080, 4.0);
+    lcd.print("b");
     adc.setCalibData(AD7190_CONF_GAIN_8, 1.00243, -0.60);
+    lcd.print(6);
 
     // Buttons
     buttons[0].init();
     buttons[1].init();
     buttons[2].init();
     buttons[3].init();
+    lcd.print(7);
 
     // FAN
     fan.init();
+    lcd.print(8);
 
     // get lcd ready for using information
-    delay(1000);
+    delay(400);
     lcd.clear();
 }
 

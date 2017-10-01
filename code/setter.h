@@ -27,16 +27,9 @@ public:
     {
     }
 
-    void increase(int16_t v)
+    void change(int16_t v)
     {
         _value = constrain(_value + INCREASE_BY[_index] * v,
-                           MIN_VALUE,
-                           _MAX_);
-    }
-
-    void decrease(int16_t v)
-    {
-        _value = constrain(_value - INCREASE_BY[_index] * v,
                            MIN_VALUE,
                            _MAX_);
     }
@@ -52,6 +45,11 @@ public:
         if (_index < 0) {
             _index += MAX_DIGITS;
         }
+    }
+
+    void set_position(int pos)
+    {
+        _index = (MAX_DIGITS - pos - 1) % MAX_DIGITS;
     }
 
     double as_double()
