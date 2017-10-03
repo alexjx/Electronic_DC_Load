@@ -43,6 +43,18 @@
 // Constants
 const double VREF_VOLTAGE = 5000.0;  // mV
 
+const double MAX_WATTAGE = 200.0;
+
+const double MAX_CURRENT = 15.0;
+
+const double MAX_TEMPERATURE = 95.0;
+
+const int MAX_PAGE = 3;
+
+const double PID_K_COEFF = 0.0;
+const double PID_I_COEFF = 0.0;
+const double PID_D_COEFF = 0.0;
+
 
 ///////////////////////
 // Devices
@@ -90,7 +102,7 @@ LM35 lm35(LM35_PIN, VREF_VOLTAGE);
 
 
 // Setter (max 15000mA)
-Setter<15000l> current_set_point;
+Setter<(int32_t)(MAX_CURRENT * 1000.0)> current_set_point;
 // Cut off voltage set
 Setter<99999l> voltage_set_point;
 
@@ -121,12 +133,13 @@ struct {
     OPTERATION_STATE state;
     uint32_t state_time;
 
-    double max;
+    double mah;
+    uint32_t mah_time;
 
     // page
     int page;
 
-} g_cb { STATE_IDLE, 0, 0.0, 0 };
+} g_cb { STATE_IDLE, 0, 0, 0, 0 };
 
 double p_term = 0.0, i_term = 0.0, d_term = 0.0;
 
@@ -238,7 +251,11 @@ void UpdateDisplay()
         lcd.print("W ");
         DisplayFixedDouble(lm35.getTemperature(), 5, 2);
         lcd.print("C            ");
+    } else if (g_cb.page == 2) {
+        lcd.print(g_cb.mah);
+        lcd.print("mAh          ");
     }
+
 
     // positiont the cursor for showing
     // current 01.345A 89.123V
@@ -257,6 +274,11 @@ void UpdateDisplay()
 
 }
 
+static uint32_t last;
+static double last_input;
+static double e_sum;
+static double pid_sum;
+static double e;
 
 void StopDischarge()
 {
@@ -265,14 +287,27 @@ void StopDischarge()
 }
 
 
+void StartDischarge()
+{
+    uint32_t now = millis();
+    g_cb.state = STATE_RUNNING;
+    g_cb.state_time = now;
+    ad5541.setValue(0);
+    e_sum = 0.0;
+    last_input = 0.0;
+    g_cb.mah = 0;
+    g_cb.mah_time = now;
+}
+
+
 void ProcessControl()
 {
     uint32_t now = millis();
 
     // abort contitions
-    if (adc.readCurrent() > 16.000 ||
+    if (adc.readCurrent() > (MAX_CURRENT * 1.1) ||
         adc.readVoltage() < voltage_set_point.as_double() ||
-        lm35.getTemperature() > 110.0)
+        lm35.getTemperature() > MAX_TEMPERATURE)
     {
         StopDischarge();
     }
@@ -304,26 +339,33 @@ void ProcessControl()
 
     // display control
     if (buttons[3].isRaisingEdge()) {
-        g_cb.page = (g_cb.page + 1) % 2;
+        g_cb.page = (g_cb.page + 1) % MAX_PAGE;
     }
 
+
     // FIXME: We should not run PID if not running
-    static uint32_t last;
-    static double last_input;
-    static double e_sum;
-    double pid_sum = 0.0;
-    double e = 0.0;
+    pid_sum = 0.0;
+    e = 0.0;
     p_term = 0.0;
     i_term = 0.0;
     d_term = 0.0;
     if (now - last >= 10) {
-        e = current_set_point.as_double() - adc.readCurrent();
+        // accumulate mah
+        g_cb.mah += adc.readCurrent() * (now - last) / 3600;
+
+        double current_set_p = current_set_point.as_double();
+        // We must limit the max wattage to IRFP250 MAX
+        if (current_set_p * adc.readVoltage() > MAX_WATTAGE) {
+            current_set_p = MAX_WATTAGE / adc.readVoltage();
+        }
+        // calc PIDd
+        e = current_set_p - adc.readCurrent();
         if (e > -0.001 && e < 0.001) {
             e = 0.0; // dead band
         }
         p_term = e * 2289.0; // _kP
-        e_sum += 0.00066 * e * (now - last);
-        e_sum = constrain(e_sum, -15, 15);
+        e_sum += 0.00036 * e * (now - last);
+        // e_sum = constrain(e_sum, -15, 15);
         i_term = e_sum;
         d_term = (adc.readCurrent() - last_input) / (now - last) * 366.0;
         pid_sum = p_term + i_term - d_term;
@@ -364,18 +406,13 @@ void ProcessControl()
         g_cb.state_time + 3000.0 < now)
     {
         // IDLE -> RUNNING
-        g_cb.state = STATE_RUNNING;
-        g_cb.state_time = now;
-        ad5541.setValue(0);
-        e_sum = 0.0;
-        last_input = 0.0;
+        StartDischarge();
     }
     else if (g_cb.state == STATE_RUNNING)
     {
         if (encoder_btn == ClickEncoder::Clicked)
         {
-            g_cb.state = STATE_IDLE;
-            ad5541.setValue(0);
+            StopDischarge();
         }
         else
         {
@@ -395,7 +432,7 @@ void setup()
     lcd.home();
     lcd.print("@DC Active Load@");
     lcd.setCursor(0, 1);
-    lcd.print("       20170927");
+    lcd.print("       20171002");
     lcd.home();
 
     //
