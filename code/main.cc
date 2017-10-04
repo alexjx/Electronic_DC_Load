@@ -49,7 +49,7 @@ const double MAX_CURRENT = 15.0;
 
 const double MAX_TEMPERATURE = 95.0;
 
-const int MAX_PAGE = 3;
+const int MAX_PAGE = 4;
 
 const double PID_K_COEFF = 0.0;
 const double PID_I_COEFF = 0.0;
@@ -134,7 +134,8 @@ struct {
     uint32_t state_time;
 
     double mah;
-    uint32_t mah_time;
+    double watt_h;
+    uint32_t update_last;
 
     // page
     int page;
@@ -250,12 +251,14 @@ void UpdateDisplay()
         DisplayFixedDouble(wattage, 8, 4);
         lcd.print("W ");
         DisplayFixedDouble(lm35.getTemperature(), 5, 2);
-        lcd.print("C            ");
+        lcd.print("C ");
     } else if (g_cb.page == 2) {
-        lcd.print(g_cb.mah);
-        lcd.print("mAh          ");
+        DisplayFixedDouble(g_cb.mah, 8, 2);
+        lcd.print("mAh      ");
+    } else if (g_cb.page == 3) {
+        DisplayFixedDouble(g_cb.watt_h, 8, 2);
+        lcd.print("Wh      ");
     }
-
 
     // positiont the cursor for showing
     // current 01.345A 89.123V
@@ -296,7 +299,7 @@ void StartDischarge()
     e_sum = 0.0;
     last_input = 0.0;
     g_cb.mah = 0;
-    g_cb.mah_time = now;
+    g_cb.update_last = now;
 }
 
 
@@ -341,7 +344,17 @@ void ProcessControl()
     if (buttons[3].isRaisingEdge()) {
         g_cb.page = (g_cb.page + 1) % MAX_PAGE;
     }
+    if (buttons[0].isRaisingEdge()) {
+        g_cb.page = (g_cb.page - 1) % MAX_PAGE;
+        if (g_cb.page < 0) {
+            g_cb.page += MAX_PAGE;
+        }
+    }
 
+    // accumulate mah
+    g_cb.mah += adc.readCurrent() * (now - g_cb.update_last) / 3600.0;
+    g_cb.watt_h += adc.readCurrent() * adc.readVoltage() * (now - g_cb.update_last) / 3600000.0;
+    g_cb.update_last = now;
 
     // FIXME: We should not run PID if not running
     pid_sum = 0.0;
@@ -350,9 +363,6 @@ void ProcessControl()
     i_term = 0.0;
     d_term = 0.0;
     if (now - last >= 10) {
-        // accumulate mah
-        g_cb.mah += adc.readCurrent() * (now - last) / 3600;
-
         double current_set_p = current_set_point.as_double();
         // We must limit the max wattage to IRFP250 MAX
         if (current_set_p * adc.readVoltage() > MAX_WATTAGE) {
@@ -378,26 +388,6 @@ void ProcessControl()
     int32_t set_point = (int32_t)ad5541.getValue();
     set_point += (int32_t)pid_sum;
     set_point = constrain(set_point, AD5541_CODE_LOW, AD5541_CODE_HIGH);
-
-
-    if (buttons[0].isActive()) {
-        lcd.clear();
-        lcd.home();
-        // lcd.print(e);
-        // lcd.print(" ");
-        // lcd.print(pid_sum);
-        // lcd.print(" ");
-        // lcd.print(set_point, HEX);
-        // lcd.print(ad5541.getValue(), HEX);
-        // lcd.setCursor(0, 1);
-        // lcd.print(p_term);
-        // lcd.print(" ");
-        // lcd.print(i_term);
-        // lcd.print(" ");
-        // lcd.print(d_term);
-        lcd.print(setter_position);
-        delay(800);
-    }
 
     // State change event
     ClickEncoder::Button encoder_btn = encoder.getButton();
