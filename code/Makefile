@@ -20,7 +20,7 @@ ARDUINO_DIR       = /opt/arduino
 USER_LIB_PATH     =  $(PROJECT_DIR)/lib
 
 ### Use Library
-ARDUINO_LIBS = SPI Wire TimerOne LiquidCrystal_I2C encoder
+ARDUINO_LIBS = SPI Wire TimerOne LiquidCrystal_I2C encoder EEPROM
 
 ### BOARD_TAG & BOARD_SUB
 ### For Arduino IDE 1.0.x

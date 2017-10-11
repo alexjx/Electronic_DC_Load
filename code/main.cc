@@ -4,6 +4,7 @@
 #include <TimerOne.h>
 #include <LiquidCrystal_I2C.h>
 #include <ClickEncoder.h>
+#include <EEPROM.h>
 
 #include "ad5541.h"
 #include "adc.h"
@@ -39,6 +40,13 @@
 
 #define ADC_CURRENT_CHN      AD7190_CH_AIN2P_AINCOM
 #define ADC_VOLTAGE_CHN      AD7190_CH_AIN1P_AINCOM
+
+#define EEPROM_VERSION_ADDR  0x00
+#define EEPROM_VERSION       0x0a
+
+#define EEPROM_CURRENT_ADDR  0x10
+#define EEPROM_VOLTAGE_ADDR  0x20
+
 
 // Constants
 const double VREF_VOLTAGE = 5000.0;  // mV
@@ -283,10 +291,29 @@ static double e_sum;
 static double pid_sum;
 static double e;
 
+
+void SaveSetPointToEEPROM()
+{
+    current_set_point.save_to_eeprom(EEPROM_CURRENT_ADDR);
+    voltage_set_point.save_to_eeprom(EEPROM_VOLTAGE_ADDR);
+}
+
+
+void UpdateCursorPosition()
+{
+    if (setter_position < 5) {
+        current_set_point.set_position(setter_position);
+    } else {
+        voltage_set_point.set_position(setter_position - 5);
+    }
+}
+
+
 void StopDischarge()
 {
     g_cb.state = STATE_IDLE;
     ad5541.setValue(0);
+    SaveSetPointToEEPROM();
 }
 
 
@@ -300,6 +327,7 @@ void StartDischarge()
     last_input = 0.0;
     g_cb.mah = 0;
     g_cb.update_last = now;
+    SaveSetPointToEEPROM();
 }
 
 
@@ -323,21 +351,33 @@ void ProcessControl()
     }
 
     // configuration setter control
+    bool pos_changed = false;
     if (buttons[1].isRaisingEdge()) {
         setter_position = (setter_position - 1) % MAX_SET_POSITION;
         if (setter_position < 0) {
             setter_position += MAX_SET_POSITION;
         }
+        pos_changed = true;
     } else if (buttons[2].isRaisingEdge()) {
         setter_position = (setter_position + 1) % MAX_SET_POSITION;
+        pos_changed = true;
+    }
+
+    if (pos_changed) {
+        UpdateCursorPosition();
     }
     // find which to set
-    if (setter_position < 5) {
-        current_set_point.set_position(setter_position);
-        current_set_point.change(encoder.getValue());
-    } else {
-        voltage_set_point.set_position(setter_position - 5);
-        voltage_set_point.change(encoder.getValue());
+    noInterrupts();
+    auto encoder_value = encoder.getValue();
+    interrupts();
+    if (encoder_value != 0) {
+        if (setter_position < 5) {
+            current_set_point.change(encoder_value);
+            lcd.print(current_set_point.get_value());
+        } else {
+            lcd.print(voltage_set_point.get_value());
+            voltage_set_point.change(encoder_value);
+        }
     }
 
     // display control
@@ -422,8 +462,18 @@ void setup()
     lcd.home();
     lcd.print("@DC Active Load@");
     lcd.setCursor(0, 1);
-    lcd.print("       20171002");
+    lcd.print("       20171011");
     lcd.home();
+
+    // load set point from eeprom
+    if (EEPROM.read(EEPROM_VERSION_ADDR) != EEPROM_VERSION) {
+        EEPROM.write(EEPROM_VERSION_ADDR, EEPROM_VERSION);
+        SaveSetPointToEEPROM();
+    } else {
+
+        current_set_point.load_from_eeprom(EEPROM_CURRENT_ADDR);
+        voltage_set_point.load_from_eeprom(EEPROM_VOLTAGE_ADDR);
+    }
 
     //
     delay(400);
@@ -439,6 +489,9 @@ void setup()
     ad5541.begin();
     ad5541.setValue(0);
     lcd.print(3);
+
+    // Cursor position
+    UpdateCursorPosition();
 
     // Timer
     Timer1.initialize(1000);
@@ -479,8 +532,15 @@ void setup()
     lcd.print(8);
 
     // get lcd ready for using information
-    delay(400);
+    delay(600);
     lcd.clear();
+
+    // lcd.home();
+    // lcd.print("To test encoder....");
+    // while (!encoder.getValue()) {
+
+    // }
+    // lcd.clear();
 }
 
 
@@ -493,4 +553,3 @@ void loop()
     // Output:
     UpdateDisplay();
 }
-

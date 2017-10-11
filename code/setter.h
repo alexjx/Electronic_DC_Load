@@ -2,6 +2,9 @@
 #define __SETTER_H__
 
 
+#include <EEPROM.h>
+
+
 const int32_t INCREASE_BY[] = {
     1,
     10,
@@ -29,9 +32,7 @@ public:
 
     void change(int16_t v)
     {
-        _value = constrain(_value + INCREASE_BY[_index] * v,
-                           MIN_VALUE,
-                           _MAX_);
+        _value = constrain(_value + INCREASE_BY[_index] * (int32_t)v, MIN_VALUE, _MAX_);
     }
 
     void move_left()
@@ -57,9 +58,24 @@ public:
         return static_cast<double>(_value) / 1000.0;
     }
 
+    int32_t get_value()
+    {
+        return _value;
+    }
+
     uint8_t current_bit()
     {
         return _index;
+    }
+
+    void save_to_eeprom(int addr)
+    {
+        EEPROM.put(addr, _value);
+    }
+
+    void load_from_eeprom(int addr)
+    {
+        EEPROM.get(addr, _value);
     }
 };
 
