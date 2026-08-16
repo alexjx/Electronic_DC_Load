@@ -53,7 +53,8 @@ const double VREF_VOLTAGE = 5000.0;  // mV
 
 const double MAX_WATTAGE = 200.0;
 
-const double MAX_CURRENT = 15.0;
+constexpr int32_t MAX_CURRENT_MILLIAMPS = 15000;
+constexpr double MAX_CURRENT = MAX_CURRENT_MILLIAMPS / 1000.0;
 
 const double MAX_TEMPERATURE = 95.0;
 
@@ -110,7 +111,7 @@ LM35 lm35(LM35_PIN, VREF_VOLTAGE);
 
 
 // Setter (max 15000mA)
-Setter<(int32_t)(MAX_CURRENT * 1000.0)> current_set_point;
+Setter<MAX_CURRENT_MILLIAMPS> current_set_point;
 // Cut off voltage set
 Setter<99999l> voltage_set_point;
 

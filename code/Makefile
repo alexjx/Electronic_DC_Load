@@ -9,11 +9,13 @@ PROJECT_DIR       = $(shell pwd)
 
 ### ARDMK_DIR
 ### Path to the Arduino-Makefile directory.
-ARDMK_DIR         ?= $(PROJECT_DIR)/Arduino-Makefile
+### Ubuntu/WSL installs Arduino.mk here through the arduino-mk package.
+ARDMK_DIR         ?= /usr/share/arduino
 
 ### ARDUINO_DIR
-### Path to the Arduino application and ressources directory.
-ARDUINO_DIR       = /opt/arduino
+### Path to the Arduino application and resources directory.
+### This remains overridable for non-Debian Arduino installations.
+ARDUINO_DIR       ?= /usr/share/arduino
 
 ### USER_LIB_PATH
 ### Path to where the your project's libraries are stored.

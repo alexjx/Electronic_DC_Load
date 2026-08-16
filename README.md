@@ -8,3 +8,8 @@ Following components are used:
 * ATMega328P-AU
 
 The input is based upon rotary encoder
+
+## Firmware build
+
+See [code/BUILDING.md](code/BUILDING.md) for the tested Ubuntu/WSL setup and
+clean-build commands.
