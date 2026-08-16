@@ -8,7 +8,7 @@ On Ubuntu 22.04 under WSL:
 
 ```sh
 sudo apt-get update
-sudo apt-get install -y arduino-core-avr arduino-mk gcc-avr avr-libc avrdude make
+sudo apt-get install -y arduino-core-avr arduino-mk gcc-avr avr-libc avrdude make g++
 git submodule update --init --recursive
 ```
 
@@ -34,6 +34,19 @@ make -C code
 
 Build artifacts are written under `code/bin/` and ignored by Git. The `.hex`
 file is the image used for flashing.
+
+## Host safety tests
+
+Run the hardware-independent controller and driver tests with:
+
+```sh
+make -C code/tests clean
+make -C code/tests
+```
+
+The tests use strict compiler warnings plus AddressSanitizer and
+UndefinedBehaviorSanitizer. Test binaries are written to
+`/tmp/electronic_dc_load_tests`, not the repository.
 
 The Makefile defaults to the Ubuntu package location, `/usr/share/arduino`.
 `ARDMK_DIR` and `ARDUINO_DIR` can still be overridden on the command line for a

@@ -41,7 +41,6 @@ public:
 
     void setValue(uint16_t value)
     {
-        value = constrain(value, AD5541_CODE_LOW, AD5541_CODE_HIGH);
         _current = value;
         send_to_device();
     }

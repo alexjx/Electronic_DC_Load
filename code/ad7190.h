@@ -28,7 +28,7 @@
 #define AD7190_STAT_ERR         (1ul << 6)      // ADC error bit.
 #define AD7190_STAT_NOREF       (1ul << 5)      // Error no external reference.
 #define AD7190_STAT_PARITY      (1ul << 4)      // Parity check of the data register.
-#define AD7190_STAT_CH(x)       ((x) & 0b111)   // Channel Mask
+#define AD7190_STAT_CH(x)       ((x) & 0x07u)   // Channel Mask
 
 
 /* Mode Register Bit Designations (AD7190_REG_MODE) */
@@ -106,6 +106,14 @@
 
 #define AD7190_SPI_CLK_SPEED    (5000000)
 #define AD7190_CODES            (16777216ul)
+#define AD7190_READY_TIMEOUT_MS (250ul)
+
+enum AD7190Status
+{
+    AD7190_STATUS_OK = 0,
+    AD7190_STATUS_TIMEOUT,
+    AD7190_STATUS_DEVICE_ERROR,
+};
 
 
 class AD7190
@@ -115,6 +123,8 @@ private:
     uint8_t _gain;
     uint8_t _gain_factor;
     uint8_t _data_sta;
+    uint8_t _ready_pin;
+    AD7190Status _status;
 
 protected:
     void _SPI_Transfer(uint8_t* data, uint8_t nr)
@@ -154,34 +164,40 @@ protected:
         _SPI_Transfer(cmd, nr + 1);
     }
 
-    void _waitDataReady()
+    bool _waitDataReady()
     {
-        loop_until_bit_is_clear(PINB, 4);
+        uint32_t start = millis();
+        while (digitalRead(_ready_pin) != LOW) {
+            // Unsigned subtraction remains correct when millis() rolls over.
+            if ((uint32_t)(millis() - start) >= AD7190_READY_TIMEOUT_MS) {
+                _status = AD7190_STATUS_TIMEOUT;
+                return false;
+            }
+        }
+        _status = AD7190_STATUS_OK;
+        return true;
     }
 
 
 
 public:
 
-    AD7190(uint8_t cs_pin) :
+    AD7190(uint8_t cs_pin, uint8_t ready_pin = MISO) :
         _cs_pin(cs_pin),
         _gain(1),
         _gain_factor(1),
-        _data_sta(0)
+        _data_sta(0),
+        _ready_pin(ready_pin),
+        _status(AD7190_STATUS_OK)
     {
 
     }
 
     void reset()
     {
-        uint8_t registerWord[6];
-        registerWord[0] = 0x01;
-        registerWord[1] = 0xFF;
-        registerWord[2] = 0xFF;
-        registerWord[3] = 0xFF;
-        registerWord[4] = 0xFF;
-        registerWord[5] = 0xFF;
-        registerWord[6] = 0xFF;
+        // The reset command is 40 consecutive one bits after the command byte.
+        // Keep the six transmitted bytes, but do not write past the buffer.
+        uint8_t registerWord[6] = {0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
         _SPI_Transfer(registerWord, 6);
         delay(1);
     }
@@ -190,7 +206,7 @@ public:
     {
         pinMode(_cs_pin, OUTPUT);
         digitalWrite(_cs_pin, HIGH);
-        pinMode(12, INPUT);
+        pinMode(_ready_pin, INPUT);
     }
 
     bool init()
@@ -199,8 +215,10 @@ public:
         // wait for ID
         uint32_t regVal = _readRegister(AD7190_REG_ID, 1);
         if ((regVal & AD7190_ID_MASK) != ID_AD7190) {
+            _status = AD7190_STATUS_DEVICE_ERROR;
             return false;
         }
+        _status = AD7190_STATUS_OK;
         return true;
     }
 
@@ -225,14 +243,22 @@ public:
         _writeRegister(AD7190_REG_MODE, val, 3);
     }
 
-    uint32_t readDataRegister()
+    bool readDataRegister(uint32_t& value)
     {
-        _waitDataReady();
-        if (_data_sta) {
-            return _readRegister(AD7190_REG_DATA, 4);
-        } else {
-            return _readRegister(AD7190_REG_DATA, 3);
+        if (!_waitDataReady()) {
+            return false;
         }
+        if (_data_sta) {
+            value = _readRegister(AD7190_REG_DATA, 4);
+        } else {
+            value = _readRegister(AD7190_REG_DATA, 3);
+        }
+        return true;
+    }
+
+    AD7190Status status() const
+    {
+        return _status;
     }
 
     uint32_t readModeRegister()
@@ -343,6 +369,8 @@ public:
                 break;
         }
 
+        _gain = gain;
+
         return true;
     }
 
@@ -358,25 +386,27 @@ public:
         return _gain_factor;
     }
 
-    void calibrateInternalScale()
+    bool calibrateInternalScale()
     {
         // We will hold CS pin low
         setMode(AD7190_MODE_CAL_INT_FULL);
-        _waitDataReady();
+        return _waitDataReady();
     }
 
-    void calibrateInternalZero()
+    bool calibrateInternalZero()
     {
         // We will hold CS pin low
         setMode(AD7190_MODE_CAL_INT_ZERO);
-        _waitDataReady();
+        return _waitDataReady();
     }
 
-    void calibrate(uint8_t chn)
+    bool calibrate(uint8_t chn)
     {
         configChannel(chn);
-        calibrateInternalZero();
-        calibrateInternalScale();
+        if (!calibrateInternalZero()) {
+            return false;
+        }
+        return calibrateInternalScale();
     }
 
     void enableChannel(int chn)
@@ -389,7 +419,7 @@ public:
     void disableChannel(int chn)
     {
         uint32_t val = _readRegister(AD7190_REG_CONF, 3);
-        val ^= AD7190_CONF_CHAN(chn);
+        val &= ~AD7190_CONF_CHAN(chn);
         _writeRegister(AD7190_REG_CONF, val, 3);
     }
 

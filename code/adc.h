@@ -71,11 +71,12 @@ private:
     GainCalibData _gain_cal[MAX_GAINS];
 
     AD7190 _ad7190;
+    AD7190Status _status;
 
 public:
 
     template<int chn>
-    double _read()
+    bool _read(double& result)
     {
         ADTransaction trans(_ad7190);
         // setup channel
@@ -84,7 +85,11 @@ public:
         do {
             _ad7190.setGain(_chan[chn].gain);
             _ad7190.setMode(AD7190_MODE_SINGLE);
-            uint32_t value = _ad7190.readDataRegister();
+            uint32_t value = 0;
+            if (!_ad7190.readDataRegister(value)) {
+                _status = _ad7190.status();
+                return false;
+            }
             uint8_t gain_factor = _ad7190.getGainFactor();
             double voltage = (double)value * _vref / AD7190_CODES / gain_factor;
 
@@ -102,7 +107,9 @@ public:
             } else if (voltage < GAIN_1_LOW && _chan[chn].gain != AD7190_CONF_GAIN_8) {
                 _chan[chn].gain = AD7190_CONF_GAIN_8;
             } else {
-                return voltage;
+                result = voltage;
+                _status = AD7190_STATUS_OK;
+                return true;
             }
         } while (1);
     }
@@ -112,9 +119,11 @@ public:
     ADConverter(uint8_t cs_pin,
                 uint8_t voltage_channel,
                 uint8_t current_channel,
-                double vref) :
+                double vref,
+                uint8_t ready_pin = MISO) :
         _vref(vref),
-        _ad7190(cs_pin)
+        _ad7190(cs_pin, ready_pin),
+        _status(AD7190_STATUS_OK)
     {
         _chan[CHANNEL_VOLTAGE].value = 0.0;
         _chan[CHANNEL_VOLTAGE].gain = 0;
@@ -139,7 +148,9 @@ public:
     bool detectDevice()
     {
         ADTransaction trans(_ad7190);
-        return _ad7190.init();
+        bool detected = _ad7190.init();
+        _status = _ad7190.status();
+        return detected;
     }
 
     void setCalibData(uint8_t gain, double scale, double offset)
@@ -153,7 +164,7 @@ public:
         }
     }
 
-    void init()
+    bool init()
     {
         ADTransaction trans(_ad7190);
         // we are running AD7190 in single convert mode.
@@ -162,21 +173,42 @@ public:
         _ad7190.configUnipolar(1);
         _ad7190.configFilter(DIGITAL_FILTER_WORDS);
         _ad7190.setGain(AD7190_CONF_GAIN_1);
-        _ad7190.calibrate(_chan[CHANNEL_VOLTAGE].channel);
-        _ad7190.calibrate(_chan[CHANNEL_CURRENT].channel);
+        if (!_ad7190.calibrate(_chan[CHANNEL_VOLTAGE].channel)) {
+            _status = _ad7190.status();
+            return false;
+        }
+        if (!_ad7190.calibrate(_chan[CHANNEL_CURRENT].channel)) {
+            _status = _ad7190.status();
+            return false;
+        }
         _ad7190.setMode(AD7190_MODE_PWRDN);
+        _status = AD7190_STATUS_OK;
+        return true;
     }
 
-    double updateVoltage() __attribute__((always_inline))
+    bool updateVoltage() __attribute__((always_inline))
     {
-        _chan[CHANNEL_VOLTAGE].value = (_read<CHANNEL_VOLTAGE>() * 10.09 / 1000.0 + 0.006) * 0.9994;
-        return readVoltage();
+        double voltage = 0.0;
+        if (!_read<CHANNEL_VOLTAGE>(voltage)) {
+            return false;
+        }
+        _chan[CHANNEL_VOLTAGE].value = (voltage * 10.09 / 1000.0 + 0.006) * 0.9994;
+        return true;
     }
 
-    double updateCurrent() __attribute__((always_inline))
+    bool updateCurrent() __attribute__((always_inline))
     {
-        _chan[CHANNEL_CURRENT].value = _read<CHANNEL_CURRENT>() / 50.0 / 0.005 / 1000.0;
-        return readCurrent();
+        double current = 0.0;
+        if (!_read<CHANNEL_CURRENT>(current)) {
+            return false;
+        }
+        _chan[CHANNEL_CURRENT].value = current / 50.0 / 0.005 / 1000.0;
+        return true;
+    }
+
+    AD7190Status status() const
+    {
+        return _status;
     }
 
     double readVoltage() __attribute__((always_inline))

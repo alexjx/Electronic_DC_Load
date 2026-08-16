@@ -12,6 +12,7 @@
 #include "fan.h"
 #include "setter.h"
 #include "lm35.h"
+#include "control.h"
 
 
 // Hardware Configuration
@@ -115,7 +116,6 @@ Setter<MAX_CURRENT_MILLIAMPS> current_set_point;
 // Cut off voltage set
 Setter<99999l> voltage_set_point;
 
-char buffer[200];
 // 0 - 4 current 5 - 9 cut off voltage
 int8_t setter_position = 4;
 const int MAX_SET_POSITION = 10;
@@ -125,31 +125,24 @@ const int MAX_SET_POSITION = 10;
 // Operations
 //////////////////////////////
 
-enum OPTERATION_STATE
-{
-    STATE_IDLE = 1,
-    STATE_RUNNING = 2,
-    STATE_CALIBRATION = 10,
-
-    STATE_UNDEF = 99,
-};
-
-
 // Global Data
 struct {
-
-    // status
-    OPTERATION_STATE state;
-    uint32_t state_time;
+    control::ControllerState controller;
+    control::MeasurementSnapshot measurement;
 
     double mah;
     double watt_h;
     uint32_t update_last;
+    bool adc_initialized;
 
     // page
     int page;
 
-} g_cb { STATE_IDLE, 0, 0, 0, 0 };
+} g_cb {
+    control::ControllerState(),
+    { 0.0, 0.0, 0.0, false, false, false, 0 },
+    0.0, 0.0, 0, false, 0
+};
 
 double p_term = 0.0, i_term = 0.0, d_term = 0.0;
 
@@ -172,14 +165,30 @@ void UpdateButtons()
 
 void UpdateCurrentVoltage()
 {
-    // update current data, no need for idle
-    if (g_cb.state != STATE_IDLE) {
-        adc.updateCurrent();
-    } else {
+    if (!g_cb.adc_initialized) {
         adc.resetCurrent();
+        g_cb.measurement.current = 0.0;
+        g_cb.measurement.voltage = 0.0;
+        g_cb.measurement.current_valid = false;
+        g_cb.measurement.voltage_valid = false;
+        return;
     }
-    // update voltage
-    adc.updateVoltage();
+
+    const bool current_valid = adc.updateCurrent();
+    if (!current_valid) {
+        g_cb.measurement.current = adc.readCurrent();
+        g_cb.measurement.voltage = adc.readVoltage();
+        g_cb.measurement.current_valid = false;
+        g_cb.measurement.voltage_valid = false;
+        return;
+    }
+
+    const bool voltage_valid = adc.updateVoltage();
+
+    g_cb.measurement.current = adc.readCurrent();
+    g_cb.measurement.voltage = adc.readVoltage();
+    g_cb.measurement.current_valid = current_valid;
+    g_cb.measurement.voltage_valid = voltage_valid;
 }
 
 
@@ -197,6 +206,10 @@ void UpdateSensors()
     // sensors
     UpdateCurrentVoltage();
     UpdateTemperature();
+
+    g_cb.measurement.temperature = lm35.getTemperature();
+    g_cb.measurement.temperature_valid = lm35.isValid();
+    g_cb.measurement.timestamp_ms = millis();
 }
 
 
@@ -225,6 +238,33 @@ void UpdateDisplay()
 {
     lcd.noCursor();
 
+    if (g_cb.controller.state == control::OperationState::Fault) {
+        lcd.setCursor(0, 0);
+        switch (g_cb.controller.fault) {
+            case control::FaultReason::AdcFailure:
+                lcd.print(F("FAULT ADC       "));
+                break;
+            case control::FaultReason::TemperatureSensorFailure:
+                lcd.print(F("FAULT TEMP SNS  "));
+                break;
+            case control::FaultReason::Overcurrent:
+                lcd.print(F("FAULT OVERCUR   "));
+                break;
+            case control::FaultReason::Undervoltage:
+                lcd.print(F("FAULT UNDERVOLT "));
+                break;
+            case control::FaultReason::Overtemperature:
+                lcd.print(F("FAULT OVERTEMP  "));
+                break;
+            default:
+                lcd.print(F("FAULT UNKNOWN   "));
+                break;
+        }
+        lcd.setCursor(0, 1);
+        lcd.print(F("Click to ack    "));
+        return;
+    }
+
     // Display
     // Line 1 - Current Set Point, temperature:
     //   aa.aaaA ttt.ttC X
@@ -235,11 +275,11 @@ void UpdateDisplay()
     lcd.print("V");
 
     // FIXME: print out status
-    switch (g_cb.state) {
-        case STATE_IDLE:
+    switch (g_cb.controller.state) {
+        case control::OperationState::Idle:
             lcd.print(" ");
             break;
-        case STATE_RUNNING:
+        case control::OperationState::Running:
             lcd.print("*");
             break;
         default:
@@ -251,19 +291,19 @@ void UpdateDisplay()
     lcd.setCursor(0, 1);
 
     if (g_cb.page == 0) {
-        DisplayFixedDouble(adc.readCurrent(), 6, 3);
+        DisplayFixedDouble(g_cb.measurement.current, 6, 3);
         lcd.print("A ");
-        DisplayFixedDouble(adc.readVoltage(), 6, 3);
+        DisplayFixedDouble(g_cb.measurement.voltage, 6, 3);
         lcd.print("V ");
     } else if (g_cb.page == 1) {
-        double wattage = adc.readVoltage() * adc.readCurrent();
+        double wattage = g_cb.measurement.voltage * g_cb.measurement.current;
         DisplayFixedDouble(wattage, 8, 4);
         lcd.print("W ");
-        DisplayFixedDouble(lm35.getTemperature(), 5, 2);
-        lcd.print("C ");
+        DisplayFixedDouble(g_cb.measurement.temperature, 5, 2);
+        lcd.print("C");
     } else if (g_cb.page == 2) {
         DisplayFixedDouble(g_cb.mah, 8, 2);
-        lcd.print("mAh      ");
+        lcd.print("mAh     ");
     } else if (g_cb.page == 3) {
         DisplayFixedDouble(g_cb.watt_h, 8, 2);
         lcd.print("Wh      ");
@@ -286,11 +326,11 @@ void UpdateDisplay()
 
 }
 
-static uint32_t last;
+static uint32_t pid_last;
 static double last_input;
-static double e_sum;
 static double pid_sum;
 static double e;
+static double e_sum;
 
 
 void SaveSetPointToEEPROM()
@@ -312,43 +352,87 @@ void UpdateCursorPosition()
 
 void StopDischarge()
 {
-    g_cb.state = STATE_IDLE;
     ad5541.setValue(0);
+    control::stop(g_cb.controller, millis());
     SaveSetPointToEEPROM();
 }
 
 
-void StartDischarge()
+bool StartDischarge()
 {
     uint32_t now = millis();
-    g_cb.state = STATE_RUNNING;
-    g_cb.state_time = now;
+    if (!control::tryStart(g_cb.controller,
+                           now,
+                           g_cb.controller.state_since_ms,
+                           true)) {
+        return false;
+    }
+
     ad5541.setValue(0);
     e_sum = 0.0;
     last_input = 0.0;
+    pid_sum = 0.0;
+    p_term = 0.0;
+    i_term = 0.0;
+    d_term = 0.0;
     g_cb.mah = 0;
+    g_cb.watt_h = 0;
     g_cb.update_last = now;
+    pid_last = now;
     SaveSetPointToEEPROM();
+    return true;
 }
 
 
 void ProcessControl()
 {
-    uint32_t now = millis();
+    // All control decisions in this pass use the same sensor sample.
+    const uint32_t now = g_cb.measurement.timestamp_ms;
+    const control::MeasurementSnapshot& measurement = g_cb.measurement;
 
-    // abort contitions
-    if (adc.readCurrent() > (MAX_CURRENT * 1.1) ||
-        adc.readVoltage() < voltage_set_point.as_double() ||
-        lm35.getTemperature() > MAX_TEMPERATURE)
-    {
-        StopDischarge();
+    // A failed/unsafe reading is handled before any user input, PID, or DAC
+    // processing.  This also keeps a newly latched fault from restarting in
+    // the same pass.
+    if (!measurement.temperature_valid ||
+        measurement.temperature > MAX_TEMPERATURE) {
+        fan.turn_on();
+    } else if (measurement.temperature > 40.0 && !fan.isOn()) {
+        fan.turn_on();
+    } else if (measurement.temperature < 35.0 && fan.isOn()) {
+        fan.turn_off();
     }
 
-    // temperature control
-    if (lm35.getTemperature() > 40.0 && !fan.isOn()) {
-        fan.turn_on();
-    } else if (lm35.getTemperature() < 35.0 && fan.isOn()) {
-        fan.turn_off();
+    const control::SafetyLimits limits = {
+        MAX_CURRENT * 1.1,
+        voltage_set_point.as_double(),
+        MAX_TEMPERATURE
+    };
+    const control::FaultReason unsafe_reason = control::evaluateSafety(
+        measurement, limits, g_cb.controller.state);
+    if (unsafe_reason != control::FaultReason::None) {
+        control::latchFault(g_cb.controller, unsafe_reason, now);
+        ad5541.setValue(0);
+        return;
+    }
+
+    ClickEncoder::Button encoder_btn = encoder.getButton();
+    if (g_cb.controller.state == control::OperationState::Fault) {
+        ad5541.setValue(0);
+        // Do not acknowledge until all three measurements are valid.  Return
+        // after acknowledgement so a held button cannot start immediately.
+        if (encoder_btn == ClickEncoder::Clicked && measurement.adcValid() &&
+            measurement.temperature_valid) {
+            control::acknowledgeFault(g_cb.controller, now);
+        }
+        return;
+    }
+
+    // A click is the user stop command and must make the output safe before
+    // any further work in this pass.
+    if (g_cb.controller.state == control::OperationState::Running &&
+        encoder_btn == ClickEncoder::Clicked) {
+        StopDischarge();
+        return;
     }
 
     // configuration setter control
@@ -392,71 +476,69 @@ void ProcessControl()
         }
     }
 
-    // accumulate mah
-    g_cb.mah += adc.readCurrent() * (now - g_cb.update_last) / 3600.0;
-    g_cb.watt_h += adc.readCurrent() * adc.readVoltage() * (now - g_cb.update_last) / 3600000.0;
+    // A held encoder button retains the existing idle-to-running workflow.
+    // The guarded model operation makes starting a fault impossible.
+    if (g_cb.controller.state == control::OperationState::Idle &&
+        encoder_btn == ClickEncoder::Held &&
+        control::hasElapsed(now, g_cb.controller.state_since_ms, 3000UL)) {
+        StartDischarge();
+        return;
+    }
+
+    if (g_cb.controller.state != control::OperationState::Running) {
+        pid_sum = 0.0;
+        e = 0.0;
+        p_term = 0.0;
+        i_term = 0.0;
+        d_term = 0.0;
+        return;
+    }
+
+    const uint32_t sample_elapsed = control::elapsedMilliseconds(
+        now, g_cb.update_last);
+    g_cb.mah += measurement.current * sample_elapsed / 3600.0;
+    g_cb.watt_h += measurement.current * measurement.voltage *
+        sample_elapsed / 3600000.0;
     g_cb.update_last = now;
 
-    // FIXME: We should not run PID if not running
+    // A correction is applied at most once per PID sample.  Clearing this
+    // prevents a stale correction from being added repeatedly by a faster UI
+    // loop when fewer than 10 ms have elapsed.
     pid_sum = 0.0;
-    e = 0.0;
-    p_term = 0.0;
-    i_term = 0.0;
-    d_term = 0.0;
-    if (now - last >= 10) {
+    if (control::hasElapsed(now, pid_last, 10UL)) {
+        const uint32_t pid_elapsed = control::elapsedMilliseconds(now, pid_last);
         double current_set_p = current_set_point.as_double();
         // We must limit the max wattage to IRFP250 MAX
-        if (current_set_p * adc.readVoltage() > MAX_WATTAGE) {
-            current_set_p = MAX_WATTAGE / adc.readVoltage();
+        if (current_set_p * measurement.voltage > MAX_WATTAGE) {
+            current_set_p = MAX_WATTAGE / measurement.voltage;
         }
         // calc PIDd
-        e = current_set_p - adc.readCurrent();
+        e = current_set_p - measurement.current;
         if (e > -0.001 && e < 0.001) {
             e = 0.0; // dead band
         }
         p_term = e * 2289.0; // _kP
-        e_sum += 0.00036 * e * (now - last);
-        // e_sum = constrain(e_sum, -15, 15);
+        e_sum = control::updateIntegral(e_sum, e, pid_elapsed);
         i_term = e_sum;
-        d_term = (adc.readCurrent() - last_input) / (now - last) * 366.0;
+        d_term = (measurement.current - last_input) / pid_elapsed * 366.0;
         pid_sum = p_term + i_term - d_term;
         // double pid_sum = p_term;
         // pid_sum *= 3.5;
-        last = now;
-        last_input = adc.readCurrent();
+        pid_last = now;
+        last_input = measurement.current;
     }
 
     int32_t set_point = (int32_t)ad5541.getValue();
     set_point += (int32_t)pid_sum;
     set_point = constrain(set_point, AD5541_CODE_LOW, AD5541_CODE_HIGH);
-
-    // State change event
-    ClickEncoder::Button encoder_btn = encoder.getButton();
-    if (g_cb.state == STATE_IDLE &&
-        encoder_btn == ClickEncoder::Held &&
-        g_cb.state_time + 3000.0 < now)
-    {
-        // IDLE -> RUNNING
-        StartDischarge();
-    }
-    else if (g_cb.state == STATE_RUNNING)
-    {
-        if (encoder_btn == ClickEncoder::Clicked)
-        {
-            StopDischarge();
-        }
-        else
-        {
-            ad5541.setValue((uint16_t)set_point);
-        }
-    }
+    ad5541.setValue((uint16_t)set_point);
 }
 
 
 void setup()
 {
     // initialize state to idle
-    g_cb.state = STATE_IDLE;
+    g_cb.controller = control::ControllerState();
 
     // LCD
     lcd.init();
@@ -471,25 +553,26 @@ void setup()
         EEPROM.write(EEPROM_VERSION_ADDR, EEPROM_VERSION);
         SaveSetPointToEEPROM();
     } else {
-
-        current_set_point.load_from_eeprom(EEPROM_CURRENT_ADDR);
-        voltage_set_point.load_from_eeprom(EEPROM_VOLTAGE_ADDR);
+        const bool current_valid =
+            current_set_point.load_from_eeprom(EEPROM_CURRENT_ADDR);
+        const bool voltage_valid =
+            voltage_set_point.load_from_eeprom(EEPROM_VOLTAGE_ADDR);
+        if (!current_valid || !voltage_valid) {
+            SaveSetPointToEEPROM();
+        }
     }
 
     //
     delay(400);
 
     lcd.clear();
-    lcd.print(1);
 
     // SPI
     SPI.begin();
-    lcd.print(2);
 
     // DAC
     ad5541.begin();
     ad5541.setValue(0);
-    lcd.print(3);
 
     // Cursor position
     UpdateCursorPosition();
@@ -497,11 +580,9 @@ void setup()
     // Timer
     Timer1.initialize(1000);
     Timer1.attachInterrupt(timer_one_isr);
-    lcd.print(4);
 
     // temperature
     lm35.init();
-    lcd.print(5);
 
     // ADC
     adc.begin();
@@ -510,30 +591,33 @@ void setup()
         lcd.print("ADC ERROR");
         delay(300);
     }
-    lcd.print("z");
     delay(10);
-    adc.init();
+    g_cb.adc_initialized = adc.init();
     delay(10);
-    lcd.print("a");
     // FIXME: Calibration data should be gotten from EEPROM
     adc.setCalibData(AD7190_CONF_GAIN_1, 1.00080, 4.0);
-    lcd.print("b");
     adc.setCalibData(AD7190_CONF_GAIN_8, 1.00243, -0.60);
-    lcd.print(6);
+
+    // Calibration failure is a latched fault.  The DAC was set to zero before
+    // ADC setup and remains there until valid measurements permit an explicit
+    // acknowledgement in the main loop.
+    if (!g_cb.adc_initialized) {
+        control::latchFault(g_cb.controller,
+                            control::FaultReason::AdcFailure,
+                            millis());
+        ad5541.setValue(0);
+    }
 
     // Buttons
     buttons[0].init();
     buttons[1].init();
     buttons[2].init();
     buttons[3].init();
-    lcd.print(7);
 
     // FAN
     fan.init();
-    lcd.print(8);
 
     // get lcd ready for using information
-    delay(600);
     lcd.clear();
 
     // lcd.home();

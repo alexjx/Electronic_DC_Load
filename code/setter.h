@@ -73,9 +73,18 @@ public:
         EEPROM.put(addr, _value);
     }
 
-    void load_from_eeprom(int addr)
+    bool load_from_eeprom(int addr)
     {
-        EEPROM.get(addr, _value);
+        int32_t loaded_value;
+        EEPROM.get(addr, loaded_value);
+
+        if (loaded_value < MIN_VALUE || loaded_value > _MAX_) {
+            _value = MIN_VALUE;
+            return false;
+        }
+
+        _value = loaded_value;
+        return true;
     }
 };
 
