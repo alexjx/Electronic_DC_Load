@@ -44,3 +44,7 @@ eagle.epf
 
 # build intermedia
 code/bin
+
+# agents/
+.agents/
+.claude/
