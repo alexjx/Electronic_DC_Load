@@ -545,7 +545,7 @@ void setup()
     lcd.home();
     lcd.print("@DC Active Load@");
     lcd.setCursor(0, 1);
-    lcd.print("       20171011");
+    lcd.print("       20260817");
     lcd.home();
 
     // load set point from eeprom
