@@ -16,6 +16,7 @@ class SPIClass
 {
 public:
     std::vector<std::vector<uint8_t> > transfers;
+    std::vector<std::vector<uint8_t> > responses;
 
     void beginTransaction(const SPISettings&)
     {
@@ -28,8 +29,16 @@ public:
     void transfer(uint8_t* data, uint8_t count)
     {
         transfers.push_back(std::vector<uint8_t>(data, data + count));
-        for (uint8_t index = 0; index < count; ++index) {
-            data[index] = 0;
+        if (!responses.empty()) {
+            const std::vector<uint8_t> response = responses.front();
+            responses.erase(responses.begin());
+            for (uint8_t index = 0; index < count; ++index) {
+                data[index] = index < response.size() ? response[index] : 0;
+            }
+        } else {
+            for (uint8_t index = 0; index < count; ++index) {
+                data[index] = 0;
+            }
         }
     }
 };

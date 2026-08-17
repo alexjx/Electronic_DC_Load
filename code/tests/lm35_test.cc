@@ -94,10 +94,40 @@ static void runtimeRailTests()
     assert(sensor.isValid());
 }
 
+static void rollingAverageTests()
+{
+    analog_value = 100;
+    LM35 sensor(3, 5000.0);
+    sensor.init();
+
+    // Fill every ring slot with a known alternating pattern, then replace the
+    // first slot after wraparound.  This checks the running sum against the
+    // equivalent 64-sample average without inspecting private state.
+    long expected_sum = 0;
+    for (int i = 0; i < LM35_SAMPLES; ++i) {
+        analog_value = (i % 2 == 0) ? 200 : 400;
+        sensor.update();
+        expected_sum += analog_value;
+    }
+    assertNear(sensor.getTemperature(),
+               (double)expected_sum * 5000.0 / 1024.0 / 10.0 /
+               LM35_SAMPLES);
+
+    analog_value = 600;
+    expected_sum -= 200;
+    expected_sum += analog_value;
+    sensor.update();
+    assertNear(sensor.getTemperature(),
+               (double)expected_sum * 5000.0 / 1024.0 / 10.0 /
+               LM35_SAMPLES);
+    assert(sensor.isValid());
+}
+
 int main()
 {
     normalReadingTests();
     initializationRailTests();
     runtimeRailTests();
+    rollingAverageTests();
     return 0;
 }

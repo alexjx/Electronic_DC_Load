@@ -53,17 +53,19 @@
 const double VREF_VOLTAGE = 5000.0;  // mV
 
 const double MAX_WATTAGE = 200.0;
+const double CONTINUOUS_WATTAGE = 180.0;
+const double MAX_INPUT_VOLTAGE = 50.0;
+const double MIN_SOURCE_VOLTAGE = 0.1;
 
 constexpr int32_t MAX_CURRENT_MILLIAMPS = 15000;
 constexpr double MAX_CURRENT = MAX_CURRENT_MILLIAMPS / 1000.0;
 
 const double MAX_TEMPERATURE = 95.0;
+const double THERMAL_DERATE_START = 80.0;
 
 const int MAX_PAGE = 4;
-
-const double PID_K_COEFF = 0.0;
-const double PID_I_COEFF = 0.0;
-const double PID_D_COEFF = 0.0;
+const uint32_t DISPLAY_UPDATE_INTERVAL_MS = 200UL;
+const uint32_t WIRE_TIMEOUT_US = 1000UL;
 
 
 ///////////////////////
@@ -134,17 +136,32 @@ struct {
     double watt_h;
     uint32_t update_last;
     bool adc_initialized;
+    bool display_available;
+    bool stop_armed;
+    bool start_press_active;
+    uint32_t start_pressed_ms;
+    uint32_t output_last;
+    uint32_t display_last;
+    control::UndervoltageQualification undervoltage;
 
     // page
     int page;
 
 } g_cb {
     control::ControllerState(),
-    { 0.0, 0.0, 0.0, false, false, false, 0 },
-    0.0, 0.0, 0, false, 0
+    control::MeasurementSnapshot(),
+    0.0, 0.0, 0, false, true, false, false, 0, 0, 0,
+    control::UndervoltageQualification(), 0
 };
 
-double p_term = 0.0, i_term = 0.0, d_term = 0.0;
+
+void SetLoadOutput(uint16_t code)
+{
+    if (code > control::kTheoreticalDacHardCapCode) {
+        code = control::kTheoreticalDacHardCapCode;
+    }
+    ad5541.setValue(code);
+}
 
 
 
@@ -163,15 +180,22 @@ void UpdateButtons()
 }
 
 
-void UpdateCurrentVoltage()
+bool HandleImmediateStop();
+
+
+bool UpdateCurrentVoltage()
 {
     if (!g_cb.adc_initialized) {
         adc.resetCurrent();
         g_cb.measurement.current = 0.0;
         g_cb.measurement.voltage = 0.0;
+        g_cb.measurement.safety_current = 0.0;
+        g_cb.measurement.safety_voltage = 0.0;
         g_cb.measurement.current_valid = false;
         g_cb.measurement.voltage_valid = false;
-        return;
+        g_cb.measurement.safety_current_valid = false;
+        g_cb.measurement.safety_voltage_valid = false;
+        return true;
     }
 
     const bool current_valid = adc.updateCurrent();
@@ -180,15 +204,27 @@ void UpdateCurrentVoltage()
         g_cb.measurement.voltage = adc.readVoltage();
         g_cb.measurement.current_valid = false;
         g_cb.measurement.voltage_valid = false;
-        return;
+        g_cb.measurement.safety_current_valid = false;
+        g_cb.measurement.safety_voltage_valid = false;
+        return true;
+    }
+
+    // Do not make an intentional stop wait for the second ADC conversion.
+    if (HandleImmediateStop()) {
+        return false;
     }
 
     const bool voltage_valid = adc.updateVoltage();
 
     g_cb.measurement.current = adc.readCurrent();
     g_cb.measurement.voltage = adc.readVoltage();
+    g_cb.measurement.safety_current = adc.readSafetyCurrent();
+    g_cb.measurement.safety_voltage = adc.readSafetyVoltage();
     g_cb.measurement.current_valid = current_valid;
     g_cb.measurement.voltage_valid = voltage_valid;
+    g_cb.measurement.safety_current_valid = current_valid;
+    g_cb.measurement.safety_voltage_valid = voltage_valid;
+    return true;
 }
 
 
@@ -198,18 +234,19 @@ void UpdateTemperature()
 }
 
 
-void UpdateSensors()
+bool UpdateSensors()
 {
     // update inputs
     UpdateButtons();
 
     // sensors
-    UpdateCurrentVoltage();
+    const bool control_processing_allowed = UpdateCurrentVoltage();
     UpdateTemperature();
 
     g_cb.measurement.temperature = lm35.getTemperature();
     g_cb.measurement.temperature_valid = lm35.isValid();
     g_cb.measurement.timestamp_ms = millis();
+    return control_processing_allowed;
 }
 
 
@@ -234,9 +271,12 @@ void DisplayFixedDouble(double value, int width, int prec)
 }
 
 
-void UpdateDisplay()
+bool UpdateDisplay()
 {
     lcd.noCursor();
+    if (Wire.getWireTimeoutFlag()) {
+        return false;
+    }
 
     if (g_cb.controller.state == control::OperationState::Fault) {
         lcd.setCursor(0, 0);
@@ -256,13 +296,37 @@ void UpdateDisplay()
             case control::FaultReason::Overtemperature:
                 lcd.print(F("FAULT OVERTEMP  "));
                 break;
+            case control::FaultReason::Overvoltage:
+                lcd.print(F("FAULT OVERVOLT  "));
+                break;
+            case control::FaultReason::Overpower:
+                lcd.print(F("FAULT OVERPOWER "));
+                break;
+            case control::FaultReason::NoSource:
+                lcd.print(F("FAULT NO SOURCE "));
+                break;
+            case control::FaultReason::DisplayFailure:
+                lcd.print(F("FAULT DISPLAY   "));
+                break;
             default:
                 lcd.print(F("FAULT UNKNOWN   "));
                 break;
         }
         lcd.setCursor(0, 1);
-        lcd.print(F("Click to ack    "));
-        return;
+        if (g_cb.controller.fault == control::FaultReason::AdcFailure) {
+            lcd.print(F("Click to retry  "));
+        } else {
+            lcd.print(F("Click to ack    "));
+        }
+        return !Wire.getWireTimeoutFlag();
+    }
+
+    if (g_cb.controller.state == control::OperationState::Completed) {
+        lcd.setCursor(0, 0);
+        lcd.print(F("DONE: CUTOFF    "));
+        lcd.setCursor(0, 1);
+        lcd.print(F("Click to finish "));
+        return !Wire.getWireTimeoutFlag();
     }
 
     // Display
@@ -284,6 +348,9 @@ void UpdateDisplay()
             break;
         default:
             lcd.print("?");
+    }
+    if (Wire.getWireTimeoutFlag()) {
+        return false;
     }
 
     // Line 2 - Current Sensing, Voltage Sensing:
@@ -323,15 +390,8 @@ void UpdateDisplay()
     }
     lcd.setCursor(bit, 0);
     lcd.cursor();
-
+    return !Wire.getWireTimeoutFlag();
 }
-
-static uint32_t pid_last;
-static double last_input;
-static double pid_sum;
-static double e;
-static double e_sum;
-
 
 void SaveSetPointToEEPROM()
 {
@@ -352,34 +412,82 @@ void UpdateCursorPosition()
 
 void StopDischarge()
 {
-    ad5541.setValue(0);
+    SetLoadOutput(0);
     control::stop(g_cb.controller, millis());
+    control::resetUndervoltageQualification(g_cb.undervoltage);
     SaveSetPointToEEPROM();
 }
 
 
-bool StartDischarge()
+bool HandleImmediateStop()
+{
+    if (g_cb.controller.state != control::OperationState::Running) {
+        return false;
+    }
+
+    const bool encoder_pressed = digitalRead(ENCODER_SW_PIN) == LOW;
+    if (!encoder_pressed) {
+        g_cb.stop_armed = true;
+        return false;
+    }
+    if (!g_cb.stop_armed) {
+        return false;
+    }
+
+    StopDischarge();
+    return true;
+}
+
+
+void LatchFault(control::FaultReason reason, uint32_t now)
+{
+    SetLoadOutput(0);
+    control::latchFault(g_cb.controller, reason, now);
+}
+
+
+void CompleteDischarge(uint32_t now)
+{
+    SetLoadOutput(0);
+    control::complete(g_cb.controller, now);
+    SaveSetPointToEEPROM();
+}
+
+
+bool StartDischarge(uint32_t held_since_ms)
 {
     uint32_t now = millis();
     if (!control::tryStart(g_cb.controller,
                            now,
-                           g_cb.controller.state_since_ms,
+                           held_since_ms,
                            true)) {
         return false;
     }
 
-    ad5541.setValue(0);
-    e_sum = 0.0;
-    last_input = 0.0;
-    pid_sum = 0.0;
-    p_term = 0.0;
-    i_term = 0.0;
-    d_term = 0.0;
+    SetLoadOutput(0);
     g_cb.mah = 0;
     g_cb.watt_h = 0;
     g_cb.update_last = now;
-    pid_last = now;
+    g_cb.output_last = now;
+    g_cb.stop_armed = false;
+    g_cb.start_press_active = false;
+    control::resetUndervoltageQualification(g_cb.undervoltage);
     SaveSetPointToEEPROM();
+    return true;
+}
+
+
+bool InitializeAdc()
+{
+    adc.begin();
+    if (!adc.detectDevice() || !adc.init()) {
+        return false;
+    }
+
+    // Calibration improves operating/display accuracy only. Absolute safety
+    // readings use the separate nominal schematic path in ADConverter.
+    adc.setCalibData(AD7190_CONF_GAIN_1, 1.00080, 4.0);
+    adc.setCalibData(AD7190_CONF_GAIN_8, 1.00243, -0.60);
     return true;
 }
 
@@ -390,7 +498,7 @@ void ProcessControl()
     const uint32_t now = g_cb.measurement.timestamp_ms;
     const control::MeasurementSnapshot& measurement = g_cb.measurement;
 
-    // A failed/unsafe reading is handled before any user input, PID, or DAC
+    // A failed/unsafe reading is handled before any user input or DAC
     // processing.  This also keeps a newly latched fault from restarting in
     // the same pass.
     if (!measurement.temperature_valid ||
@@ -402,36 +510,59 @@ void ProcessControl()
         fan.turn_off();
     }
 
-    const control::SafetyLimits limits = {
-        MAX_CURRENT * 1.1,
-        voltage_set_point.as_double(),
-        MAX_TEMPERATURE
-    };
-    const control::FaultReason unsafe_reason = control::evaluateSafety(
-        measurement, limits, g_cb.controller.state);
-    if (unsafe_reason != control::FaultReason::None) {
-        control::latchFault(g_cb.controller, unsafe_reason, now);
-        ad5541.setValue(0);
-        return;
-    }
-
     ClickEncoder::Button encoder_btn = encoder.getButton();
     if (g_cb.controller.state == control::OperationState::Fault) {
-        ad5541.setValue(0);
-        // Do not acknowledge until all three measurements are valid.  Return
-        // after acknowledgement so a held button cannot start immediately.
-        if (encoder_btn == ClickEncoder::Clicked && measurement.adcValid() &&
-            measurement.temperature_valid) {
-            control::acknowledgeFault(g_cb.controller, now);
+        SetLoadOutput(0);
+        if (encoder_btn == ClickEncoder::Clicked) {
+            if (g_cb.controller.fault == control::FaultReason::AdcFailure) {
+                g_cb.adc_initialized = InitializeAdc();
+                if (g_cb.adc_initialized) {
+                    control::acknowledgeFault(g_cb.controller, millis());
+                }
+            } else if (g_cb.controller.fault !=
+                       control::FaultReason::DisplayFailure &&
+                       measurement.adcValid() &&
+                       measurement.temperature_valid) {
+                const control::SafetyLimits recovery_limits = {
+                    MAX_CURRENT * 1.1, 0.0, MAX_TEMPERATURE,
+                    MAX_INPUT_VOLTAGE, MAX_WATTAGE
+                };
+                if (control::evaluateSafety(measurement, recovery_limits,
+                                            g_cb.controller.state) ==
+                    control::FaultReason::None) {
+                    control::acknowledgeFault(g_cb.controller, now);
+                }
+            }
         }
         return;
     }
 
-    // A click is the user stop command and must make the output safe before
-    // any further work in this pass.
-    if (g_cb.controller.state == control::OperationState::Running &&
-        encoder_btn == ClickEncoder::Clicked) {
-        StopDischarge();
+    if (g_cb.controller.state == control::OperationState::Completed) {
+        SetLoadOutput(0);
+        if (encoder_btn == ClickEncoder::Clicked) {
+            control::acknowledgeCompleted(g_cb.controller, now);
+        }
+        return;
+    }
+
+    const control::SafetyLimits limits = {
+        MAX_CURRENT * 1.1,
+        voltage_set_point.as_double(),
+        MAX_TEMPERATURE,
+        MAX_INPUT_VOLTAGE,
+        MAX_WATTAGE
+    };
+    const control::FaultReason unsafe_reason = control::evaluateSafety(
+        measurement, limits, g_cb.controller.state);
+    if (unsafe_reason != control::FaultReason::None) {
+        LatchFault(unsafe_reason, now);
+        return;
+    }
+
+    // After starting, require release before arming an immediate press-to-stop.
+    // A false stop from switch bounce is safe; a delayed stop is not.
+    const bool encoder_pressed = digitalRead(ENCODER_SW_PIN) == LOW;
+    if (HandleImmediateStop()) {
         return;
     }
 
@@ -458,9 +589,7 @@ void ProcessControl()
     if (encoder_value != 0) {
         if (setter_position < 5) {
             current_set_point.change(encoder_value);
-            lcd.print(current_set_point.get_value());
         } else {
-            lcd.print(voltage_set_point.get_value());
             voltage_set_point.change(encoder_value);
         }
     }
@@ -476,21 +605,47 @@ void ProcessControl()
         }
     }
 
-    // A held encoder button retains the existing idle-to-running workflow.
-    // The guarded model operation makes starting a fault impossible.
-    if (g_cb.controller.state == control::OperationState::Idle &&
-        encoder_btn == ClickEncoder::Held &&
-        control::hasElapsed(now, g_cb.controller.state_since_ms, 3000UL)) {
-        StartDischarge();
-        return;
+    // Track the physical press time directly. ClickEncoder's Held event has a
+    // different duration and must not be confused with the 3 second start hold.
+    const double cutoff_voltage = voltage_set_point.as_double() >
+        MIN_SOURCE_VOLTAGE ? voltage_set_point.as_double() : MIN_SOURCE_VOLTAGE;
+    if (g_cb.controller.state == control::OperationState::Idle) {
+        if (encoder_pressed && !g_cb.start_press_active) {
+            g_cb.start_press_active = true;
+            g_cb.start_pressed_ms = now;
+        } else if (!encoder_pressed) {
+            g_cb.start_press_active = false;
+        }
+
+        if (g_cb.start_press_active &&
+            control::hasElapsed(now, g_cb.start_pressed_ms,
+                                control::kStartHoldMilliseconds)) {
+            if (measurement.safety_voltage < MIN_SOURCE_VOLTAGE) {
+                LatchFault(control::FaultReason::NoSource, now);
+                return;
+            }
+            if (measurement.safety_voltage <= cutoff_voltage) {
+                if (StartDischarge(g_cb.start_pressed_ms)) {
+                    CompleteDischarge(millis());
+                }
+                return;
+            }
+            StartDischarge(g_cb.start_pressed_ms);
+            return;
+        }
     }
 
     if (g_cb.controller.state != control::OperationState::Running) {
-        pid_sum = 0.0;
-        e = 0.0;
-        p_term = 0.0;
-        i_term = 0.0;
-        d_term = 0.0;
+        SetLoadOutput(0);
+        return;
+    }
+
+    if (control::qualifyUndervoltage(g_cb.undervoltage,
+                                     measurement.safety_voltage,
+                                     measurement.safety_voltage_valid,
+                                     cutoff_voltage,
+                                     now)) {
+        CompleteDischarge(now);
         return;
     }
 
@@ -501,52 +656,57 @@ void ProcessControl()
         sample_elapsed / 3600000.0;
     g_cb.update_last = now;
 
-    // A correction is applied at most once per PID sample.  Clearing this
-    // prevents a stale correction from being added repeatedly by a faster UI
-    // loop when fewer than 10 ms have elapsed.
-    pid_sum = 0.0;
-    if (control::hasElapsed(now, pid_last, 10UL)) {
-        const uint32_t pid_elapsed = control::elapsedMilliseconds(now, pid_last);
-        double current_set_p = current_set_point.as_double();
-        // We must limit the max wattage to IRFP250 MAX
-        if (current_set_p * measurement.voltage > MAX_WATTAGE) {
-            current_set_p = MAX_WATTAGE / measurement.voltage;
-        }
-        // calc PIDd
-        e = current_set_p - measurement.current;
-        if (e > -0.001 && e < 0.001) {
-            e = 0.0; // dead band
-        }
-        p_term = e * 2289.0; // _kP
-        e_sum = control::updateIntegral(e_sum, e, pid_elapsed);
-        i_term = e_sum;
-        d_term = (measurement.current - last_input) / pid_elapsed * 366.0;
-        pid_sum = p_term + i_term - d_term;
-        // double pid_sum = p_term;
-        // pid_sum *= 3.5;
-        pid_last = now;
-        last_input = measurement.current;
+    // The analog AD8629/shunt loop is the fast current servo. Firmware supplies
+    // an absolute schematic-derived command, never an accumulated correction.
+    double target_current = control::boundedCurrentTarget(
+        current_set_point.as_double(),
+        measurement.safety_voltage,
+        measurement.temperature,
+        CONTINUOUS_WATTAGE,
+        THERMAL_DERATE_START,
+        MAX_TEMPERATURE);
+    if (measurement.safety_voltage < MIN_SOURCE_VOLTAGE) {
+        target_current = 0.0;
     }
-
-    int32_t set_point = (int32_t)ad5541.getValue();
-    set_point += (int32_t)pid_sum;
-    set_point = constrain(set_point, AD5541_CODE_LOW, AD5541_CODE_HIGH);
-    ad5541.setValue((uint16_t)set_point);
+    const uint16_t target_code =
+        control::theoreticalDacCodeForCurrent(target_current);
+    const uint16_t output_code = control::slewDacCode(
+        ad5541.getValue(), target_code, now, g_cb.output_last);
+    g_cb.output_last = now;
+    SetLoadOutput(output_code);
 }
 
 
 void setup()
 {
-    // initialize state to idle
     g_cb.controller = control::ControllerState();
 
-    // LCD
+    // Establish safe physical outputs before any UI delay or device probing.
+    SPI.begin();
+    ad5541.begin();
+    SetLoadOutput(0);
+    fan.init();
+    fan.turn_on();
+
+    // Bound every I2C transaction so a failed display cannot freeze control.
+    Wire.begin();
+    Wire.setWireTimeout(WIRE_TIMEOUT_US, true);
+    Wire.clearWireTimeoutFlag();
     lcd.init();
-    lcd.home();
-    lcd.print("@DC Active Load@");
-    lcd.setCursor(0, 1);
-    lcd.print("       20260817");
-    lcd.home();
+    g_cb.display_available = !Wire.getWireTimeoutFlag();
+    Wire.clearWireTimeoutFlag();
+    if (g_cb.display_available) {
+        lcd.home();
+        lcd.print("@DC Active Load@");
+        lcd.setCursor(0, 1);
+        lcd.print("       20260817");
+        lcd.home();
+        if (Wire.getWireTimeoutFlag()) {
+            g_cb.display_available = false;
+            Wire.clearWireTimeoutFlag();
+            LatchFault(control::FaultReason::DisplayFailure, millis());
+        }
+    }
 
     // load set point from eeprom
     if (EEPROM.read(EEPROM_VERSION_ADDR) != EEPROM_VERSION) {
@@ -562,17 +722,7 @@ void setup()
         }
     }
 
-    //
     delay(400);
-
-    lcd.clear();
-
-    // SPI
-    SPI.begin();
-
-    // DAC
-    ad5541.begin();
-    ad5541.setValue(0);
 
     // Cursor position
     UpdateCursorPosition();
@@ -581,31 +731,14 @@ void setup()
     Timer1.initialize(1000);
     Timer1.attachInterrupt(timer_one_isr);
 
-    // temperature
+    // Temperature averaging runs before the fan is allowed to turn off.
     lm35.init();
 
-    // ADC
-    adc.begin();
-    while (!adc.detectDevice()) {
-        lcd.clear();
-        lcd.print("ADC ERROR");
-        delay(300);
-    }
-    delay(10);
-    g_cb.adc_initialized = adc.init();
-    delay(10);
-    // FIXME: Calibration data should be gotten from EEPROM
-    adc.setCalibData(AD7190_CONF_GAIN_1, 1.00080, 4.0);
-    adc.setCalibData(AD7190_CONF_GAIN_8, 1.00243, -0.60);
-
-    // Calibration failure is a latched fault.  The DAC was set to zero before
-    // ADC setup and remains there until valid measurements permit an explicit
-    // acknowledgement in the main loop.
+    // One bounded initialization attempt enters the normal fault model instead
+    // of blocking setup forever. A click on FAULT ADC retries safely.
+    g_cb.adc_initialized = InitializeAdc();
     if (!g_cb.adc_initialized) {
-        control::latchFault(g_cb.controller,
-                            control::FaultReason::AdcFailure,
-                            millis());
-        ad5541.setValue(0);
+        LatchFault(control::FaultReason::AdcFailure, millis());
     }
 
     // Buttons
@@ -614,27 +747,37 @@ void setup()
     buttons[2].init();
     buttons[3].init();
 
-    // FAN
-    fan.init();
-
-    // get lcd ready for using information
-    lcd.clear();
-
-    // lcd.home();
-    // lcd.print("To test encoder....");
-    // while (!encoder.getValue()) {
-
-    // }
-    // lcd.clear();
+    if (g_cb.display_available) {
+        lcd.clear();
+        if (Wire.getWireTimeoutFlag()) {
+            g_cb.display_available = false;
+            Wire.clearWireTimeoutFlag();
+            LatchFault(control::FaultReason::DisplayFailure, millis());
+        }
+    }
+    g_cb.display_last = millis() - DISPLAY_UPDATE_INTERVAL_MS;
 }
 
 
 void loop()
 {
-    // Read Information
-    UpdateSensors();
-    // TODO: Controller logic
-    ProcessControl();
-    // Output:
-    UpdateDisplay();
+    if (HandleImmediateStop()) {
+        return;
+    }
+    if (UpdateSensors()) {
+        ProcessControl();
+    }
+
+    const uint32_t now = millis();
+    if (g_cb.display_available &&
+        control::hasElapsed(now, g_cb.display_last,
+                            DISPLAY_UPDATE_INTERVAL_MS)) {
+        const bool display_ok = UpdateDisplay();
+        g_cb.display_last = now;
+        if (!display_ok || Wire.getWireTimeoutFlag()) {
+            Wire.clearWireTimeoutFlag();
+            g_cb.display_available = false;
+            LatchFault(control::FaultReason::DisplayFailure, millis());
+        }
+    }
 }

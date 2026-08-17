@@ -106,13 +106,31 @@
 
 #define AD7190_SPI_CLK_SPEED    (5000000)
 #define AD7190_CODES            (16777216ul)
-#define AD7190_READY_TIMEOUT_MS (250ul)
+/*
+ * At the configured filter rate a normal single conversion completes in
+ * tens of milliseconds.  Calibration can legitimately take considerably
+ * longer, so it gets its own budget.  Keep the old name as a source
+ * compatibility alias for callers that used it before the budgets were
+ * separated.
+ */
+#define AD7190_CONVERSION_TIMEOUT_MS (100ul)
+#define AD7190_CALIBRATION_TIMEOUT_MS (1000ul)
+#define AD7190_READY_TIMEOUT_MS AD7190_CONVERSION_TIMEOUT_MS
 
 enum AD7190Status
 {
     AD7190_STATUS_OK = 0,
     AD7190_STATUS_TIMEOUT,
     AD7190_STATUS_DEVICE_ERROR,
+    AD7190_STATUS_DATA_ERROR,
+    AD7190_STATUS_NO_REFERENCE,
+    AD7190_STATUS_WRONG_CHANNEL,
+    AD7190_STATUS_PARITY_ERROR,
+
+    /* Descriptive aliases retained for the integration layer. */
+    AD7190_STATUS_ADC_ERROR = AD7190_STATUS_DATA_ERROR,
+    AD7190_STATUS_NOREF = AD7190_STATUS_NO_REFERENCE,
+    AD7190_STATUS_CHANNEL_ERROR = AD7190_STATUS_WRONG_CHANNEL,
 };
 
 
@@ -164,17 +182,36 @@ protected:
         _SPI_Transfer(cmd, nr + 1);
     }
 
-    bool _waitDataReady()
+    bool _waitDataReady(uint32_t timeout_ms)
     {
         uint32_t start = millis();
         while (digitalRead(_ready_pin) != LOW) {
             // Unsigned subtraction remains correct when millis() rolls over.
-            if ((uint32_t)(millis() - start) >= AD7190_READY_TIMEOUT_MS) {
+            if ((uint32_t)(millis() - start) >= timeout_ms) {
                 _status = AD7190_STATUS_TIMEOUT;
                 return false;
             }
         }
         _status = AD7190_STATUS_OK;
+        return true;
+    }
+
+    bool _validateDataStatus(uint8_t data_status, int expected_channel)
+    {
+        if ((data_status & AD7190_STAT_NOREF) != 0) {
+            _status = AD7190_STATUS_NO_REFERENCE;
+            return false;
+        }
+        if ((data_status & AD7190_STAT_ERR) != 0) {
+            _status = AD7190_STATUS_DATA_ERROR;
+            return false;
+        }
+        if ((expected_channel >= 0) &&
+            (AD7190_STAT_CH(data_status) !=
+             AD7190_STAT_CH((uint8_t)expected_channel))) {
+            _status = AD7190_STATUS_WRONG_CHANNEL;
+            return false;
+        }
         return true;
     }
 
@@ -243,16 +280,24 @@ public:
         _writeRegister(AD7190_REG_MODE, val, 3);
     }
 
-    bool readDataRegister(uint32_t& value)
+    bool readDataRegister(uint32_t& value, int expected_channel = -1)
     {
-        if (!_waitDataReady()) {
+        if (!_waitDataReady(AD7190_CONVERSION_TIMEOUT_MS)) {
             return false;
         }
+        uint32_t raw = 0;
         if (_data_sta) {
-            value = _readRegister(AD7190_REG_DATA, 4);
+            raw = _readRegister(AD7190_REG_DATA, 4);
+            const uint8_t data_status = (uint8_t)(raw & 0xffu);
+            if (!_validateDataStatus(data_status, expected_channel)) {
+                return false;
+            }
+            raw >>= 8;
         } else {
-            value = _readRegister(AD7190_REG_DATA, 3);
+            raw = _readRegister(AD7190_REG_DATA, 3);
         }
+        value = raw;
+        _status = AD7190_STATUS_OK;
         return true;
     }
 
@@ -336,6 +381,17 @@ public:
         _writeRegister(AD7190_REG_CONF, val, 3);
     }
 
+    void configReferenceDetection(int enable)
+    {
+        uint32_t val = _readRegister(AD7190_REG_CONF, 3);
+        if (enable) {
+            val |= AD7190_CONF_REFDET;
+        } else {
+            val &= ~AD7190_CONF_REFDET;
+        }
+        _writeRegister(AD7190_REG_CONF, val, 3);
+    }
+
     bool setGain(uint8_t gain)
     {
         if (_gain == gain) {
@@ -390,14 +446,14 @@ public:
     {
         // We will hold CS pin low
         setMode(AD7190_MODE_CAL_INT_FULL);
-        return _waitDataReady();
+        return _waitDataReady(AD7190_CALIBRATION_TIMEOUT_MS);
     }
 
     bool calibrateInternalZero()
     {
         // We will hold CS pin low
         setMode(AD7190_MODE_CAL_INT_ZERO);
-        return _waitDataReady();
+        return _waitDataReady(AD7190_CALIBRATION_TIMEOUT_MS);
     }
 
     bool calibrate(uint8_t chn)

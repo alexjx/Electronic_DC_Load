@@ -14,6 +14,7 @@ private:
     int _pin;
     int _samples[LM35_SAMPLES];
     int _index;
+    long _sum;
     int _vref;
     double _temperature;
     bool _valid;
@@ -22,21 +23,18 @@ private:
 
     bool _isPlausible()
     {
-        double r = 0.0;
-        for (int i = LM35_SAMPLES; i > 0; i--) {
-            r += (double)_samples[i - 1];
-        }
-
         // Do not impose a temperature range: only reject ADC rail readings.
-        return r > (double)LM35_ADC_RAIL_LOW * LM35_SAMPLES &&
-               r < (double)LM35_ADC_RAIL_HIGH * LM35_SAMPLES;
+        return _sum > (long)LM35_ADC_RAIL_LOW * LM35_SAMPLES &&
+               _sum < (long)LM35_ADC_RAIL_HIGH * LM35_SAMPLES;
     }
 
 protected:
     void _update()
     {
         const int sample = analogRead(_pin);
+        _sum -= _samples[_index];
         _samples[_index] = sample;
+        _sum += sample;
         _index = (_index + 1) % LM35_SAMPLES;
 
         if (sample <= LM35_ADC_RAIL_LOW || sample >= LM35_ADC_RAIL_HIGH) {
@@ -50,7 +48,7 @@ protected:
 
 public:
     LM35(uint8_t pin, double vref) :
-        _pin(pin), _index(0), _vref(vref), _temperature(0.0),
+        _pin(pin), _index(0), _sum(0), _vref(vref), _temperature(0.0),
         _valid(false), _initialized(false), _rail_samples(0)
     {
         memset(_samples, 0, sizeof(_samples));
@@ -79,11 +77,7 @@ public:
 
     double calcTemperature()
     {
-        double r = 0.0;
-        for (int i = LM35_SAMPLES; i > 0; i--) {
-            r += (double)_samples[i - 1];
-        }
-        return r * _vref / 1024 / 10.0 / LM35_SAMPLES;
+        return (double)_sum * _vref / 1024 / 10.0 / LM35_SAMPLES;
     }
 
     double getTemperature() __attribute__((always_inline))

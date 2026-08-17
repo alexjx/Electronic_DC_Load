@@ -22,7 +22,7 @@ matches the requested value.
 ```text
 Source under test -> J1 -> IRFP250N -> 5 mOhm shunt -> ground
                          ^                   |
-                         |                   +-> INA210 -> AD7190 ADC
+                         |                   +-> INA213 -> AD7190 ADC
 ATmega328P -> AD5541 DAC -> AD8629 gate-control amplifier
 ```
 
@@ -32,7 +32,7 @@ ATmega328P -> AD5541 DAC -> AD8629 gate-control amplifier
 | AD7190 | Measures load voltage and shunt current |
 | AD5541 | Produces the analog current command |
 | AD8629 | Buffers voltage sensing and drives the MOSFET control loop |
-| INA210 and 5 mOhm / 4 W shunt | Measures load current |
+| INA213 and 5 mOhm / 4 W shunt | Measures load current |
 | IRFP250N | Dissipates the power drawn from the source |
 | LM35 | Measures heatsink temperature |
 | 16x2 LCD and PCF8574 | Displays settings and measurements over I2C |
@@ -47,9 +47,10 @@ ATmega328P -> AD5541 DAC -> AD8629 gate-control amplifier
 | J3 | AVR ISP | Programming connector for the ATmega328P |
 | J4 | Cooling fan | Nominal 12 V fan output controlled by the firmware |
 
-The complete Eagle design is in [`schematic/`](schematic/). The analog voltage
-divider shown there and the firmware calibration factor do not exactly match, so
-verify voltage and current readings against calibrated meters before power testing.
+The complete Eagle design is in [`schematic/`](schematic/). The design files
+label the input-divider resistor as 9.9 kOhm, while the purchase record says the
+fitted part is 9.09 kOhm. The firmware follows the purchase record; confirm the
+assembled value and verify readings against calibrated meters before power testing.
 
 ## Controls and display
 
